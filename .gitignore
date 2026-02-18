@@ -6,3 +6,4 @@ workspace/data/
 *.db-wal
 *.db-shm
 .idea/
+setup.sh

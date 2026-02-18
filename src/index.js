@@ -1,6 +1,9 @@
 "use strict";
 
-require("dotenv").config();
+const env = process.env.NODE_ENV || "development";
+require("dotenv").config({ path: `.env.${env}`, override: false });
+require("dotenv").config({ path: ".env.local", override: true });
+require("dotenv").config({ path: ".env", override: false });
 
 const path = require("path");
 const { initDb } = require("./db/database");

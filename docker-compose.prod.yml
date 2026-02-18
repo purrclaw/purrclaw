@@ -1,0 +1,13 @@
+services:
+  purrclaw:
+    build:
+      target: runner
+    restart: unless-stopped
+    env_file:
+      - .env.production
+      - .env.local
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

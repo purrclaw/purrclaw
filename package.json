@@ -1,0 +1,16 @@
+{
+  "name": "purrclaw",
+  "version": "1.0.0",
+  "description": "Ultra-lightweight personal AI agent for Telegram with DeepSeek",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js"
+  },
+  "dependencies": {
+    "node-telegram-bot-api": "^0.66.0",
+    "better-sqlite3": "^9.4.3",
+    "axios": "^1.6.7",
+    "dotenv": "^16.4.5"
+  }
+}

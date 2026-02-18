@@ -18,7 +18,7 @@ const memoryReadTool = () => ({
   async execute(args) {
     const { key } = args;
     if (!key) return { forLLM: "key is required", isError: true };
-    const value = getMemory(key);
+    const value = await getMemory(key);
     if (value === null) {
       return {
         forLLM: `No memory found for key: ${key}`,
@@ -52,7 +52,7 @@ const memoryWriteTool = () => ({
     if (!key) return { forLLM: "key is required", isError: true };
     if (value === undefined)
       return { forLLM: "value is required", isError: true };
-    setMemory(key, String(value));
+    await setMemory(key, String(value));
     return {
       forLLM: `Memory saved: ${key} = ${value}`,
       forUser: `✅ Remembered: ${key}`,

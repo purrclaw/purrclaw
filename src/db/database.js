@@ -1,10 +1,12 @@
 "use strict";
 
-const Database = require("better-sqlite3");
+const sqlite3 = require("sqlite3");
+const { open } = require("sqlite");
 const path = require("path");
 const fs = require("fs");
 
 let db;
+let dbInitPromise;
 
 function getDb() {
   if (!db) {
@@ -13,17 +15,29 @@ function getDb() {
   return db;
 }
 
-function initDb(dbPath) {
+async function initDb(dbPath) {
+  if (db) {
+    return db;
+  }
+  if (dbInitPromise) {
+    return dbInitPromise;
+  }
+
   const dir = path.dirname(dbPath);
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
   }
 
-  db = new Database(dbPath);
-  db.pragma("journal_mode = WAL");
-  db.pragma("foreign_keys = ON");
+  dbInitPromise = (async () => {
+    const instance = await open({
+      filename: dbPath,
+      driver: sqlite3.Database,
+    });
 
-  db.exec(`
+    await instance.exec("PRAGMA journal_mode = WAL;");
+    await instance.exec("PRAGMA foreign_keys = ON;");
+
+    await instance.exec(`
     CREATE TABLE IF NOT EXISTS sessions (
       session_key TEXT PRIMARY KEY,
       summary     TEXT DEFAULT '',
@@ -57,31 +71,41 @@ function initDb(dbPath) {
     );
   `);
 
-  return db;
+    db = instance;
+    return db;
+  })();
+
+  try {
+    return await dbInitPromise;
+  } finally {
+    dbInitPromise = null;
+  }
 }
 
 // ─── Sessions ────────────────────────────────────────────────────────────────
 
-function getOrCreateSession(sessionKey) {
+async function getOrCreateSession(sessionKey) {
   const db = getDb();
   const now = Date.now();
-  db.prepare(
+  await db.run(
     `
     INSERT OR IGNORE INTO sessions (session_key, summary, created_at, updated_at)
     VALUES (?, '', ?, ?)
   `,
-  ).run(sessionKey, now, now);
-  return db
-    .prepare("SELECT * FROM sessions WHERE session_key = ?")
-    .get(sessionKey);
+    sessionKey,
+    now,
+    now,
+  );
+  return db.get("SELECT * FROM sessions WHERE session_key = ?", sessionKey);
 }
 
-function getSessionHistory(sessionKey) {
+async function getSessionHistory(sessionKey) {
   const db = getDb();
-  getOrCreateSession(sessionKey);
-  const rows = db
-    .prepare("SELECT * FROM messages WHERE session_key = ? ORDER BY id ASC")
-    .all(sessionKey);
+  await getOrCreateSession(sessionKey);
+  const rows = await db.all(
+    "SELECT * FROM messages WHERE session_key = ? ORDER BY id ASC",
+    sessionKey,
+  );
 
   return rows.map((row) => {
     const msg = { role: row.role, content: row.content };
@@ -97,7 +121,7 @@ function getSessionHistory(sessionKey) {
   });
 }
 
-function addMessage(
+async function addMessage(
   sessionKey,
   role,
   content,
@@ -105,14 +129,13 @@ function addMessage(
   toolCallId = null,
 ) {
   const db = getDb();
-  getOrCreateSession(sessionKey);
+  await getOrCreateSession(sessionKey);
   const now = Date.now();
-  db.prepare(
+  await db.run(
     `
     INSERT INTO messages (session_key, role, content, tool_calls, tool_call_id, created_at)
     VALUES (?, ?, ?, ?, ?, ?)
   `,
-  ).run(
     sessionKey,
     role,
     content || "",
@@ -120,54 +143,58 @@ function addMessage(
     toolCallId || null,
     now,
   );
-  db.prepare("UPDATE sessions SET updated_at = ? WHERE session_key = ?").run(
+  await db.run(
+    "UPDATE sessions SET updated_at = ? WHERE session_key = ?",
     now,
     sessionKey,
   );
 }
 
-function getSessionSummary(sessionKey) {
+async function getSessionSummary(sessionKey) {
   const db = getDb();
-  const row = db
-    .prepare("SELECT summary FROM sessions WHERE session_key = ?")
-    .get(sessionKey);
+  const row = await db.get(
+    "SELECT summary FROM sessions WHERE session_key = ?",
+    sessionKey,
+  );
   return row ? row.summary || "" : "";
 }
 
-function setSessionSummary(sessionKey, summary) {
+async function setSessionSummary(sessionKey, summary) {
   const db = getDb();
-  getOrCreateSession(sessionKey);
-  db.prepare(
+  await getOrCreateSession(sessionKey);
+  await db.run(
     "UPDATE sessions SET summary = ?, updated_at = ? WHERE session_key = ?",
-  ).run(summary, Date.now(), sessionKey);
+    summary,
+    Date.now(),
+    sessionKey,
+  );
 }
 
-function truncateHistory(sessionKey, keepLast) {
+async function truncateHistory(sessionKey, keepLast) {
   const db = getDb();
-  const rows = db
-    .prepare("SELECT id FROM messages WHERE session_key = ? ORDER BY id ASC")
-    .all(sessionKey);
+  const rows = await db.all(
+    "SELECT id FROM messages WHERE session_key = ? ORDER BY id ASC",
+    sessionKey,
+  );
 
   if (rows.length <= keepLast) return;
 
   const toDelete = rows.slice(0, rows.length - keepLast).map((r) => r.id);
   const placeholders = toDelete.map(() => "?").join(",");
-  db.prepare(`DELETE FROM messages WHERE id IN (${placeholders})`).run(
+  await db.run(
+    `DELETE FROM messages WHERE id IN (${placeholders})`,
     ...toDelete,
   );
 }
 
-function setHistory(sessionKey, messages) {
+async function setHistory(sessionKey, messages) {
   const db = getDb();
-  getOrCreateSession(sessionKey);
-  db.prepare("DELETE FROM messages WHERE session_key = ?").run(sessionKey);
+  await getOrCreateSession(sessionKey);
+  await db.run("DELETE FROM messages WHERE session_key = ?", sessionKey);
   const now = Date.now();
-  const stmt = db.prepare(`
-    INSERT INTO messages (session_key, role, content, tool_calls, tool_call_id, created_at)
-    VALUES (?, ?, ?, ?, ?, ?)
-  `);
   for (const msg of messages) {
-    stmt.run(
+    await db.run(
+      "INSERT INTO messages (session_key, role, content, tool_calls, tool_call_id, created_at) VALUES (?, ?, ?, ?, ?, ?)",
       sessionKey,
       msg.role,
       msg.content || "",
@@ -176,7 +203,8 @@ function setHistory(sessionKey, messages) {
       now,
     );
   }
-  db.prepare("UPDATE sessions SET updated_at = ? WHERE session_key = ?").run(
+  await db.run(
+    "UPDATE sessions SET updated_at = ? WHERE session_key = ?",
     now,
     sessionKey,
   );
@@ -184,38 +212,44 @@ function setHistory(sessionKey, messages) {
 
 // ─── Memory ──────────────────────────────────────────────────────────────────
 
-function getMemory(key) {
+async function getMemory(key) {
   const db = getDb();
-  const row = db.prepare("SELECT value FROM memory WHERE key = ?").get(key);
+  const row = await db.get("SELECT value FROM memory WHERE key = ?", key);
   return row ? row.value : null;
 }
 
-function setMemory(key, value) {
+async function setMemory(key, value) {
   const db = getDb();
-  db.prepare(
+  await db.run(
     `
     INSERT INTO memory (key, value, updated_at) VALUES (?, ?, ?)
     ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at
   `,
-  ).run(key, value, Date.now());
+    key,
+    value,
+    Date.now(),
+  );
 }
 
 // ─── State ───────────────────────────────────────────────────────────────────
 
-function getState(key) {
+async function getState(key) {
   const db = getDb();
-  const row = db.prepare("SELECT value FROM state WHERE key = ?").get(key);
+  const row = await db.get("SELECT value FROM state WHERE key = ?", key);
   return row ? row.value : null;
 }
 
-function setState(key, value) {
+async function setState(key, value) {
   const db = getDb();
-  db.prepare(
+  await db.run(
     `
     INSERT INTO state (key, value, updated_at) VALUES (?, ?, ?)
     ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at
   `,
-  ).run(key, value, Date.now());
+    key,
+    value,
+    Date.now(),
+  );
 }
 
 module.exports = {

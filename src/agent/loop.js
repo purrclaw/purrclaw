@@ -62,8 +62,8 @@ class AgentLoop {
     if (cmdResponse !== null) return cmdResponse;
 
     // Load history and summary
-    const history = getSessionHistory(sessionKey);
-    const summary = getSessionSummary(sessionKey);
+    const history = await getSessionHistory(sessionKey);
+    const summary = await getSessionSummary(sessionKey);
 
     // Build messages array
     const messages = this.contextBuilder.buildMessages(
@@ -75,16 +75,18 @@ class AgentLoop {
     );
 
     // Save user message
-    addMessage(sessionKey, "user", userMessage);
+    await addMessage(sessionKey, "user", userMessage);
 
     // Run LLM iteration loop
     const finalContent = await this._runLLMLoop(sessionKey, messages);
 
     // Save assistant response
-    addMessage(sessionKey, "assistant", finalContent);
+    await addMessage(sessionKey, "assistant", finalContent);
 
     // Maybe summarize in background
-    this._maybeSummarize(sessionKey, channel, chatId);
+    this._maybeSummarize(sessionKey, channel, chatId).catch((err) =>
+      console.error("[agent] Summarization trigger error:", err),
+    );
 
     return (
       finalContent || "I've completed processing but have no response to give."
@@ -117,10 +119,10 @@ class AgentLoop {
             "[agent] Context window error, compressing...",
             err.message,
           );
-          this._forceCompression(sessionKey, messages);
+          await this._forceCompression(sessionKey, messages);
           // Rebuild messages after compression
-          const history = getSessionHistory(sessionKey);
-          const summary = getSessionSummary(sessionKey);
+          const history = await getSessionHistory(sessionKey);
+          const summary = await getSessionSummary(sessionKey);
           messages = this.contextBuilder.buildMessages(
             history,
             summary,
@@ -153,7 +155,7 @@ class AgentLoop {
         })),
       };
       messages.push(assistantMsg);
-      addMessage(
+      await addMessage(
         sessionKey,
         "assistant",
         response.content || "",
@@ -174,7 +176,7 @@ class AgentLoop {
           tool_call_id: tc.id,
         };
         messages.push(toolResultMsg);
-        addMessage(sessionKey, "tool", toolResultMsg.content, null, tc.id);
+        await addMessage(sessionKey, "tool", toolResultMsg.content, null, tc.id);
       }
     }
 
@@ -224,16 +226,16 @@ class AgentLoop {
   /**
    * Reset session history (called externally for /reset command).
    */
-  resetSession(sessionKey) {
-    setHistory(sessionKey, []);
-    setSessionSummary(sessionKey, "");
+  async resetSession(sessionKey) {
+    await setHistory(sessionKey, []);
+    await setSessionSummary(sessionKey, "");
   }
 
   /**
    * Trigger summarization if history is too long.
    */
-  _maybeSummarize(sessionKey, channel, chatId) {
-    const history = getSessionHistory(sessionKey);
+  async _maybeSummarize(sessionKey, channel, chatId) {
+    const history = await getSessionHistory(sessionKey);
     const tokenEstimate =
       (history.reduce((sum, m) => sum + (m.content || "").length, 0) * 2) / 5;
     const threshold = CONTEXT_WINDOW * 0.75;
@@ -249,8 +251,8 @@ class AgentLoop {
   }
 
   async _summarizeSession(sessionKey) {
-    const history = getSessionHistory(sessionKey);
-    const existingSummary = getSessionSummary(sessionKey);
+    const history = await getSessionHistory(sessionKey);
+    const existingSummary = await getSessionSummary(sessionKey);
 
     if (history.length <= 4) return;
 
@@ -275,8 +277,8 @@ class AgentLoop {
       );
 
       if (response.content) {
-        setSessionSummary(sessionKey, response.content);
-        truncateHistory(sessionKey, 4);
+        await setSessionSummary(sessionKey, response.content);
+        await truncateHistory(sessionKey, 4);
         console.log(`[agent] Session ${sessionKey} summarized.`);
       }
     } catch (err) {
@@ -287,13 +289,13 @@ class AgentLoop {
   /**
    * Emergency context compression: drop oldest half of messages.
    */
-  _forceCompression(sessionKey, messages) {
-    const history = getSessionHistory(sessionKey);
+  async _forceCompression(sessionKey, messages) {
+    const history = await getSessionHistory(sessionKey);
     if (history.length <= 4) return;
 
     const mid = Math.floor(history.length / 2);
     const kept = history.slice(mid);
-    setHistory(sessionKey, kept);
+    await setHistory(sessionKey, kept);
     console.warn(`[agent] Force compression: dropped ${mid} messages.`);
   }
 }

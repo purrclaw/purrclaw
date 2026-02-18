@@ -121,7 +121,7 @@ class TelegramChannel {
 
     // Handle /reset command specially (needs session key)
     if (text.trim() === "/reset") {
-      this.agentLoop.resetSession(sessionKey);
+      await this.agentLoop.resetSession(sessionKey);
       await this._sendMessage(chatId, "🔄 Conversation history cleared!");
       return;
     }

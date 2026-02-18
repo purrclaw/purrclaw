@@ -9,7 +9,8 @@
   },
   "dependencies": {
     "node-telegram-bot-api": "^0.66.0",
-    "better-sqlite3": "^9.4.3",
+    "sqlite3": "^5.1.7",
+    "sqlite": "^5.1.1",
     "axios": "^1.6.7",
     "dotenv": "^16.4.5"
   }

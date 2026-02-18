@@ -40,7 +40,7 @@ async function main() {
   console.log(`   Model:     ${DEEPSEEK_MODEL}`);
 
   // Initialize SQLite database
-  initDb(DB_PATH);
+  await initDb(DB_PATH);
   console.log("✅ Database initialized");
 
   // Create DeepSeek provider

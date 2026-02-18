@@ -4,6 +4,14 @@
 
 Personal AI agent for Telegram with agentic tool-calling loop, SQLite persistence, and filesystem operations.
 
+## Tech Stack
+
+- **Runtime**: Node.js 22
+- **LLM Provider**: DeepSeek API
+- **Database**: SQLite (better-sqlite3)
+- **Channel**: Telegram Bot API
+- **Tools**: read_file, write_file, append_file, list_dir, exec, memory_read, memory_write
+
 ## Architecture
 
 ```
@@ -23,6 +31,12 @@ src/
     ├── filesystem.js     # read/write/append/list
     ├── shell.js          # exec with safety guards
     └── memory.js         # key-value store
+
+# Note: 'workspace/' folder is for Identity/Personality ONLY. Do not edit logic there.
+workspace/
+├── AGENT.md          # Agent personality config
+├── IDENTITY.md       # Identity settings
+└── SOUL.md           # Core behaviors
 ```
 
 ## Key Patterns
@@ -46,7 +60,30 @@ src/
 - Output truncated at 10KB
 - 60s timeout for shell commands
 
-## Environment
+## Coding Guidelines
+
+- KISS — no over-engineering
+- Self-documenting code — no comments needed
+- Small functions, single responsibility
+- Match existing patterns
+- English only
+
+## Anti-Patterns (NEVER DO)
+
+- Global state
+- Hardcoded paths (use `path.join`)
+- SQL string concatenation (use params)
+- Unhandled Promise rejections
+
+## Checklist: Modifying Code
+
+1. Read existing patterns first.
+2. Match the style of surrounding code.
+3. Keep functions small and focused.
+4. Handle errors gracefully.
+5. Test via Telegram after changes.
+
+## Environment Files
 
 | File               | Git | Content                    |
 | ------------------ | --- | -------------------------- |
@@ -63,14 +100,6 @@ docker compose up
 # Prod
 docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
 ```
-
-## Coding Guidelines
-
-- KISS — no over-engineering
-- Self-documenting code — no comments needed
-- Small functions, single responsibility
-- Match existing patterns
-- English only
 
 ## Current Roadmap
 

@@ -1,0 +1,10 @@
+services:
+  purrclaw:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - purrclaw_data:/data/workspace
+
+volumes:
+  purrclaw_data:

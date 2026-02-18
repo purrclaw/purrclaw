@@ -1,0 +1,10 @@
+services:
+  purrclaw:
+    build:
+      target: dev
+    env_file:
+      - .env.development
+      - .env.local
+    volumes:
+      - ./src:/app/src
+      - ./workspace:/data/workspace

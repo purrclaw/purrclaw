@@ -26,6 +26,7 @@ Inspired by [picoclaw](https://github.com/sipeed/picoclaw).
 - 🧠 **Auto-summarization** — automatically compresses long-running chats to stay within context window
 - ⏱️ **Tool execution guardrails** — per-tool timeout control via `TOOL_TIMEOUT_MS`
 - ⏰ **Reminders** — scheduled in-chat reminders with persistence
+- 🤝 **Multi-agent v1** — spawn isolated subagents and fetch status/result
 - 📁 **Workspace** — customizable workspace with bootstrap files (AGENT.md, SOUL.md, etc.)
 
 ## Quick Start
@@ -86,6 +87,7 @@ MAX_ITERATIONS=20
 CONTEXT_WINDOW=65536
 STREAMING_RESPONSES=true
 TOOL_TIMEOUT_MS=45000
+SUBAGENT_MAX_SECONDS=120
 DISCORD_REQUIRE_MENTION=true
 SLACK_REQUIRE_MENTION=true
 WHATSAPP_REQUIRE_PREFIX=@bot
@@ -141,6 +143,9 @@ Shared bot commands (`/start`, `/help`, `/reset`, `/model`, `/tools`) are suppor
 | `reminder_create` | Set reminder in N seconds                |
 | `reminder_list`   | List pending reminders                   |
 | `reminder_delete` | Delete reminder by ID                    |
+| `spawn_subagent`  | Launch async subagent task               |
+| `subagent_status` | Check subagent status by ID              |
+| `subagent_result` | Read subagent final result               |
 
 ## Use Cases
 
@@ -180,6 +185,8 @@ purrclaw/
 │   │   └── fallback.js       # Fallback provider wrapper
 │   ├── reminders/
 │   │   └── service.js        # Scheduled reminder engine
+│   ├── subagents/
+│   │   └── service.js        # Subagent orchestration service
 │   └── tools/
 │       ├── registry.js       # Tool registry
 │       ├── filesystem.js     # File system tools
@@ -188,7 +195,8 @@ purrclaw/
 │       ├── web.js            # Web search tool
 │       ├── fetch.js          # Read URL tool
 │       ├── workspace_search.js # RAG-lite workspace search
-│       └── reminder.js       # Reminder tools
+│       ├── reminder.js       # Reminder tools
+│       └── subagent.js       # Subagent tools
 ├── workspace/
 │   ├── AGENT.md              # Agent instructions
 │   ├── IDENTITY.md           # Agent identity

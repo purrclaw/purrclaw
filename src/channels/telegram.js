@@ -42,8 +42,8 @@ function markdownToTelegramHTML(text) {
   text = text.replace(/\*\*(.+?)\*\*/g, "<b>$1</b>");
   text = text.replace(/__(.+?)__/g, "<b>$1</b>");
 
-  // Italic
-  text = text.replace(/_([^_]+)_/g, "<i>$1</i>");
+  // Italic (asterisk-only to avoid breaking snake_case like TELEGRAM_TOKEN)
+  text = text.replace(/(^|[^\*])\*([^\*\n]+)\*(?!\*)/g, "$1<i>$2</i>");
 
   // Strikethrough
   text = text.replace(/~~(.+?)~~/g, "<s>$1</s>");
@@ -70,6 +70,19 @@ function markdownToTelegramHTML(text) {
   });
 
   return text;
+}
+
+function htmlToPlainText(text) {
+  if (!text) return "";
+
+  return text
+    .replace(/<\/?(b|strong|i|em|u|ins|s|strike|del|code|pre|a)(\s+[^>]*)?>/gi, "")
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&amp;/g, "&")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'");
 }
 
 class TelegramChannel {
@@ -196,10 +209,10 @@ class TelegramChannel {
         if (parseMode) opts.parse_mode = parseMode;
         await this.bot.sendMessage(chatId, chunk, opts);
       } catch (err) {
-        // If HTML parse fails, send as plain text
+        // If HTML parse fails, send readable plain text without raw tags
         if (parseMode === "HTML") {
           try {
-            await this.bot.sendMessage(chatId, chunk);
+            await this.bot.sendMessage(chatId, htmlToPlainText(chunk));
           } catch (e2) {
             console.error("[telegram] Failed to send message:", e2.message);
           }

@@ -62,6 +62,7 @@ async function main() {
       },
     );
   });
+  subagentService.start();
 
   const channelInfo = createChannelsFromEnv({
     env: process.env,
@@ -86,6 +87,7 @@ async function main() {
 
   const shutdown = async (signal) => {
     console.log(`\n[main] Received ${signal}, shutting down...`);
+    subagentService.stop();
     await channelManager.stop();
     process.exit(0);
   };

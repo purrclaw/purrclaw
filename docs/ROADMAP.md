@@ -13,7 +13,7 @@ Single-channel Telegram AI agent powered by DeepSeek with agentic tool-calling l
 
 > Low complexity, high impact. Ship fast.
 
-- [ ] **Whitelist users** — `ALLOWED_USERS` env var with comma-separated Telegram user IDs. Reject unauthorized users with a polite message.
+- [x] **Identity allowlist** — `ALLOWED_IDENTITIES` env var with comma-separated IDs/tokens for users and chats (channel-aware format supported).
 
 - [ ] **Parallel tool calls** — Execute multiple tool calls concurrently via `Promise.all` instead of sequential loop. DeepSeek already returns arrays.
 

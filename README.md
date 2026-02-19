@@ -37,7 +37,14 @@ DEEPSEEK_MODEL=deepseek-chat
 WORKSPACE_DIR=./workspace
 MAX_ITERATIONS=20
 CONTEXT_WINDOW=65536
+ALLOWED_IDENTITIES=telegram:user:123456789,telegram:chat:-1001234567890
 ```
+
+`ALLOWED_IDENTITIES` is optional. If empty, access is open.
+Warning: leaving it empty is insecure and should be used only for local development.
+Supported tokens:
+- `telegram:user:123456789`
+- `telegram:chat:-1001234567890`
 
 ## Telegram Commands
 

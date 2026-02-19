@@ -1,5 +1,6 @@
 
 const TelegramBot = require("node-telegram-bot-api");
+const { addMessage } = require("../db/database");
 
 /**
  * Convert markdown-ish text to Telegram HTML format.
@@ -89,12 +90,42 @@ class TelegramChannel {
   /**
    * @param {string} token - Telegram bot token
    * @param {import('../agent/loop').AgentLoop} agentLoop
+   * @param {Set<string>} allowedIdentities
    */
-  constructor(token, agentLoop) {
+  constructor(token, agentLoop, allowedIdentities = new Set()) {
     this.token = token;
     this.agentLoop = agentLoop;
     this.bot = null;
-    this.pendingMessages = new Map(); // chatId -> messageId of "Thinking..." placeholder
+    this.pendingMessages = new Map();
+    this.allowedIdentities = allowedIdentities;
+  }
+
+  _hasToken(token) {
+    return this.allowedIdentities.has(String(token));
+  }
+
+  _isUserAllowed(userId) {
+    const uid = String(userId);
+    return this._hasToken(`telegram:user:${uid}`);
+  }
+
+  _isChatAllowed(chatId) {
+    const cid = String(chatId);
+    return this._hasToken(`telegram:chat:${cid}`);
+  }
+
+  _isAllowed(chatId, userId) {
+    if (!this.allowedIdentities || this.allowedIdentities.size === 0) {
+      return true;
+    }
+
+    return this._isUserAllowed(userId) || this._isChatAllowed(chatId);
+  }
+
+  _isGroupChat(chatType) {
+    return (
+      chatType === "group" || chatType === "supergroup" || chatType === "channel"
+    );
   }
 
   start() {
@@ -120,12 +151,39 @@ class TelegramChannel {
     const userId = msg.from.id;
     const username = msg.from.username || "";
     const text = msg.text || msg.caption || "";
+    const chatType = msg.chat.type || "";
 
     if (!text) return;
 
     const sessionKey = `telegram:${chatId}`;
     const channel = "telegram";
     const chatIdStr = String(chatId);
+
+    if (!this._isAllowed(chatId, userId)) {
+      console.warn(
+        `[telegram] Rejected message from user ${userId} in chat ${chatId}: not in ALLOWED_IDENTITIES`,
+      );
+      const deniedText = "⛔ Access denied. This chat or user is not allowed.";
+
+      await addMessage(sessionKey, "user", text);
+      await addMessage(sessionKey, "assistant", deniedText);
+
+      await this._sendMessage(chatId, deniedText);
+
+      if (this._isGroupChat(chatType) && !this._isChatAllowed(chatId)) {
+        try {
+          await this.bot.leaveChat(chatId);
+          console.warn(`[telegram] Left unauthorized chat ${chatId}`);
+        } catch (leaveErr) {
+          console.error(
+            `[telegram] Failed to leave unauthorized chat ${chatId}:`,
+            leaveErr.message,
+          );
+        }
+      }
+
+      return;
+    }
 
     console.log(
       `[telegram] Message from ${userId}${username ? "@" + username : ""}: ${text.slice(0, 80)}`,

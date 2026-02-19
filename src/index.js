@@ -17,6 +17,19 @@ const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY;
 const DEEPSEEK_MODEL = process.env.DEEPSEEK_MODEL || "deepseek-chat";
 const WORKSPACE_DIR = path.resolve(process.env.WORKSPACE_DIR || "./workspace");
 const DB_PATH = path.join(WORKSPACE_DIR, "data", "purrclaw.db");
+const ALLOWED_IDENTITIES_RAW = process.env.ALLOWED_IDENTITIES;
+
+function parseAllowlist(raw) {
+  if (!raw || !raw.trim()) return new Set();
+  return new Set(
+    raw
+      .split(",")
+      .map((item) => item.trim())
+      .filter(Boolean),
+  );
+}
+
+const allowedIdentities = parseAllowlist(ALLOWED_IDENTITIES_RAW || "");
 
 // ─── Validation ───────────────────────────────────────────────────────────────
 
@@ -37,6 +50,9 @@ async function main() {
   console.log(`   Workspace: ${WORKSPACE_DIR}`);
   console.log(`   Database:  ${DB_PATH}`);
   console.log(`   Model:     ${DEEPSEEK_MODEL}`);
+  console.log(
+    `   Allowlist: ${allowedIdentities.size === 0 ? "disabled" : `${allowedIdentities.size} identities`}`,
+  );
 
   // Initialize SQLite database
   await initDb(DB_PATH);
@@ -53,7 +69,11 @@ async function main() {
   );
 
   // Start Telegram channel
-  const telegram = new TelegramChannel(TELEGRAM_TOKEN, agentLoop);
+  const telegram = new TelegramChannel(
+    TELEGRAM_TOKEN,
+    agentLoop,
+    allowedIdentities,
+  );
   telegram.start();
   console.log("✅ Telegram bot started");
 

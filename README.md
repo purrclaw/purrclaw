@@ -3,7 +3,7 @@
 Minimalist, secure, and local-first AI agent for modern messengers.
 Built with Node.js + SQLite + a provider-ready LLM layer.
 A practical alternative to heavy agent stacks like openclaw.
-Telegram is the current channel, with support for other popular messengers planned.
+Runs with Telegram, Discord, Slack, and WhatsApp channels, and a pluggable provider layer.
 
 Inspired by [picoclaw](https://github.com/sipeed/picoclaw).
 
@@ -19,8 +19,8 @@ Inspired by [picoclaw](https://github.com/sipeed/picoclaw).
 
 ## Features
 
-- 🤖 **LLM provider-ready** — currently configured with DeepSeek (`deepseek-chat`), with multi-provider support in roadmap
-- 💬 **Messenger channel architecture** — Telegram is implemented today; support for other popular messengers is planned
+- 🤖 **Multi-provider architecture** — `deepseek`, `openai`, and generic `openai_compat`
+- 💬 **Multi-channel architecture** — `telegram`, `discord`, `slack`, and `whatsapp` via channel manager + env config
 - 🗄️ **SQLite (`sqlite3` + `sqlite`)** — persistent session history, memory, and state
 - 🔧 **Agentic tool-calling** — read/write files, list directories, execute shell commands, persistent memory
 - 🧠 **Auto-summarization** — automatically compresses long-running chats to stay within context window
@@ -44,13 +44,34 @@ npm start
 Edit `.env`:
 
 ```env
+PROVIDER=deepseek
+ENABLED_CHANNELS=telegram
+
 TELEGRAM_TOKEN=your_telegram_bot_token
+DISCORD_TOKEN=your_discord_bot_token
+SLACK_BOT_TOKEN=xoxb-...
+SLACK_APP_TOKEN=xapp-...
+SLACK_SIGNING_SECRET=...
+
 DEEPSEEK_API_KEY=your_deepseek_api_key
 DEEPSEEK_MODEL=deepseek-chat
+
+OPENAI_API_KEY=your_openai_api_key
+OPENAI_MODEL=gpt-4o-mini
+OPENAI_BASE_URL=https://api.openai.com/v1
+
+OPENAI_COMPAT_API_KEY=your_compat_api_key
+OPENAI_COMPAT_BASE_URL=https://openrouter.ai/api/v1
+OPENAI_COMPAT_MODEL=gpt-4o-mini
+
 WORKSPACE_DIR=./workspace
 MAX_ITERATIONS=20
 CONTEXT_WINDOW=65536
-ALLOWED_IDENTITIES=telegram:user:123456789,telegram:chat:-1001234567890
+DISCORD_REQUIRE_MENTION=true
+SLACK_REQUIRE_MENTION=true
+WHATSAPP_REQUIRE_PREFIX=@bot
+WHATSAPP_CLIENT_ID=purrclaw
+ALLOWED_IDENTITIES=telegram:user:123456789,telegram:chat:-1001234567890,discord:user:123456789012345678,discord:guild:123456789012345678,slack:user:U12345678,slack:channel:C12345678,slack:team:T12345678,whatsapp:contact:1234567890@c.us,whatsapp:chat:1234567890@c.us
 ```
 
 ### Security First
@@ -61,10 +82,18 @@ Running with an empty allowlist is for local testing only.
 Supported tokens:
 - `telegram:user:123456789`
 - `telegram:chat:-1001234567890`
+- `discord:user:123456789012345678`
+- `discord:channel:123456789012345678`
+- `discord:guild:123456789012345678`
+- `slack:user:U12345678`
+- `slack:channel:C12345678`
+- `slack:team:T12345678`
+- `whatsapp:contact:1234567890@c.us`
+- `whatsapp:chat:1234567890@c.us`
 
-## Telegram Commands
+## Commands
 
-Telegram is currently the primary channel. Other popular messengers are planned.
+Shared bot commands (`/start`, `/help`, `/reset`, `/model`, `/tools`) are supported in Telegram, Discord, Slack, and WhatsApp.
 
 | Command  | Description                |
 | -------- | -------------------------- |
@@ -88,17 +117,16 @@ Telegram is currently the primary channel. Other popular messengers are planned.
 
 ## Use Cases
 
-- Multi-messenger personal copilot (Telegram now, more channels planned)
+- Multi-messenger personal copilot (Telegram + Discord + Slack + WhatsApp today)
 - Lightweight self-hosted AI agent without cloud lock-in
 - Safe tool-calling experiments on Node.js
 
 ## Roadmap
 
-- Whitelist users and access controls
 - Parallel tool execution
 - Web search, streaming, and vision support
-- Multi-provider backend and HTTP channel
-- Support for other popular messengers beyond Telegram (WhatsApp, Discord, Slack, and more)
+- More channels and richer attachment handling
+- Provider routing, fallbacks, and per-task model selection
 
 ## Project Structure
 
@@ -110,11 +138,18 @@ purrclaw/
 │   │   ├── loop.js           # Main agent loop (LLM + tool calling)
 │   │   └── context.js        # System prompt / context builder
 │   ├── channels/
-│   │   └── telegram.js       # Telegram channel (more messenger channels planned)
+│   │   ├── factory.js        # Channel factory from env
+│   │   ├── manager.js        # Multi-channel lifecycle manager
+│   │   ├── telegram.js       # Telegram channel
+│   │   ├── discord.js        # Discord channel
+│   │   ├── slack.js          # Slack channel (Socket Mode)
+│   │   └── whatsapp.js       # WhatsApp channel
 │   ├── db/
 │   │   └── database.js       # SQLite database layer
 │   ├── providers/
-│   │   └── deepseek.js       # Current provider adapter (multi-provider planned)
+│   │   ├── factory.js        # Provider factory from env
+│   │   ├── openai_compat.js  # OpenAI-compatible base provider
+│   │   └── deepseek.js       # DeepSeek provider adapter
 │   └── tools/
 │       ├── registry.js       # Tool registry
 │       ├── filesystem.js     # File system tools

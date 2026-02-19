@@ -98,6 +98,7 @@ class TelegramChannel {
     this.bot = null;
     this.pendingMessages = new Map();
     this.allowedIdentities = allowedIdentities;
+    this.name = "telegram";
   }
 
   _hasToken(token) {

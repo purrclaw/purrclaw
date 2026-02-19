@@ -99,6 +99,7 @@ class TelegramChannel {
     this.pendingMessages = new Map();
     this.allowedIdentities = allowedIdentities;
     this.name = "telegram";
+    this.streamingEnabled = process.env.STREAMING_RESPONSES === "true";
   }
 
   _hasToken(token) {
@@ -235,6 +236,23 @@ class TelegramChannel {
     const stopTyping = this._startTyping(chatId, messageThreadId);
 
     try {
+      if (this.streamingEnabled) {
+        const stream = await this._startStreamMessage(chatId, messageThreadId);
+        const response = await this.agentLoop.processMessage(
+          sessionKey,
+          text,
+          channel,
+          chatIdStr,
+          {
+            onUpdate: async ({ text: partialText }) => {
+              await this._updateStreamMessage(stream, partialText);
+            },
+          },
+        );
+        await this._finalizeStreamMessage(stream, response);
+        return;
+      }
+
       const response = await this.agentLoop.processMessage(
         sessionKey,
         text,
@@ -251,6 +269,73 @@ class TelegramChannel {
     } finally {
       stopTyping();
     }
+  }
+
+  async _startStreamMessage(chatId, messageThreadId = null) {
+    const opts = {};
+    if (messageThreadId) opts.message_thread_id = messageThreadId;
+    const sent = await this.bot.sendMessage(chatId, "⏳ Thinking...", opts);
+    return {
+      chatId,
+      messageThreadId,
+      messageId: sent.message_id,
+      updatedAt: 0,
+      lastText: "",
+    };
+  }
+
+  async _updateStreamMessage(stream, text) {
+    const now = Date.now();
+    if (now - stream.updatedAt < 900) return;
+    const safeText = String(text || "").trim();
+    if (!safeText || safeText === stream.lastText) return;
+    if (safeText.length > 3900) return;
+
+    const html = markdownToTelegramHTML(safeText);
+    const opts = {
+      chat_id: stream.chatId,
+      message_id: stream.messageId,
+      parse_mode: "HTML",
+    };
+    if (stream.messageThreadId) {
+      opts.message_thread_id = stream.messageThreadId;
+    }
+
+    try {
+      await this.bot.editMessageText(html, opts);
+      stream.updatedAt = now;
+      stream.lastText = safeText;
+    } catch {}
+  }
+
+  async _finalizeStreamMessage(stream, finalText) {
+    const safeText = String(finalText || "").trim() || "(empty response)";
+    if (safeText.length <= 3900) {
+      const html = markdownToTelegramHTML(safeText);
+      const opts = {
+        chat_id: stream.chatId,
+        message_id: stream.messageId,
+        parse_mode: "HTML",
+      };
+      if (stream.messageThreadId) {
+        opts.message_thread_id = stream.messageThreadId;
+      }
+
+      try {
+        await this.bot.editMessageText(html, opts);
+        return;
+      } catch {}
+    }
+
+    try {
+      await this.bot.deleteMessage(stream.chatId, stream.messageId);
+    } catch {}
+    await this._sendMessage(
+      stream.chatId,
+      markdownToTelegramHTML(safeText),
+      "HTML",
+      stream.messageThreadId,
+    );
   }
 
   async _sendMessage(chatId, text, parseMode = null, messageThreadId = null) {

@@ -7,4 +7,5 @@ services:
       - .env.local
     volumes:
       - ./src:/app/src
-      - ./workspace:/data/workspace
+      - ./workspace:/app/workspace
+      - /app/node_modules

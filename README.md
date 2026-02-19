@@ -39,6 +39,16 @@ cp .env.example .env
 npm start
 ```
 
+## Docker
+
+```bash
+# Development (with auto-reload via docker-compose.override.yml)
+docker compose up
+
+# Production
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+```
+
 ## Configuration
 
 Edit `.env`:
@@ -63,10 +73,12 @@ OPENAI_BASE_URL=https://api.openai.com/v1
 OPENAI_COMPAT_API_KEY=your_compat_api_key
 OPENAI_COMPAT_BASE_URL=https://openrouter.ai/api/v1
 OPENAI_COMPAT_MODEL=gpt-4o-mini
+BRAVE_SEARCH_API_KEY=your_brave_key_optional
 
 WORKSPACE_DIR=./workspace
 MAX_ITERATIONS=20
 CONTEXT_WINDOW=65536
+STREAMING_RESPONSES=true
 DISCORD_REQUIRE_MENTION=true
 SLACK_REQUIRE_MENTION=true
 WHATSAPP_REQUIRE_PREFIX=@bot
@@ -114,6 +126,9 @@ Shared bot commands (`/start`, `/help`, `/reset`, `/model`, `/tools`) are suppor
 | `exec`         | Execute shell commands (with safety guard) |
 | `memory_read`  | Read from persistent key-value memory      |
 | `memory_write` | Write to persistent key-value memory       |
+| `memory_list`  | List memory keys and latest values         |
+| `memory_delete`| Delete memory entry by key                 |
+| `web_search`   | Search web (Brave if key set, else DDG)    |
 
 ## Use Cases
 
@@ -124,7 +139,7 @@ Shared bot commands (`/start`, `/help`, `/reset`, `/model`, `/tools`) are suppor
 ## Roadmap
 
 - Parallel tool execution
-- Web search, streaming, and vision support
+- Vision and voice input support
 - More channels and richer attachment handling
 - Provider routing, fallbacks, and per-task model selection
 
@@ -154,7 +169,8 @@ purrclaw/
 │       ├── registry.js       # Tool registry
 │       ├── filesystem.js     # File system tools
 │       ├── shell.js          # Shell execution tool
-│       └── memory.js         # Persistent memory tools
+│       ├── memory.js         # Persistent memory tools
+│       └── web.js            # Web search tool
 ├── workspace/
 │   ├── AGENT.md              # Agent instructions
 │   ├── IDENTITY.md           # Agent identity

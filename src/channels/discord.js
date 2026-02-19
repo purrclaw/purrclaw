@@ -15,6 +15,7 @@ class DiscordChannel {
     this.name = "discord";
     this.requireMentionInGuild =
       process.env.DISCORD_REQUIRE_MENTION !== "false";
+    this.streamingEnabled = process.env.STREAMING_RESPONSES === "true";
   }
 
   _hasToken(token) {
@@ -114,6 +115,23 @@ class DiscordChannel {
       await msg.channel.sendTyping();
     } catch {}
 
+    if (this.streamingEnabled) {
+      const streamMsg = await msg.reply("⏳ Thinking...");
+      const response = await this.agentLoop.processMessage(
+        sessionKey,
+        text,
+        "discord",
+        channelId,
+        {
+          onUpdate: async ({ text: partialText }) => {
+            await this._updateStreamMessage(streamMsg, partialText);
+          },
+        },
+      );
+      await this._finalizeStreamMessage(streamMsg, response);
+      return;
+    }
+
     const response = await this.agentLoop.processMessage(
       sessionKey,
       text,
@@ -122,6 +140,31 @@ class DiscordChannel {
     );
 
     await this._sendMessage(msg, response);
+  }
+
+  async _updateStreamMessage(streamMsg, text) {
+    const safeText = String(text || "").trim();
+    if (!safeText) return;
+    const chunk = safeText.slice(0, 1900);
+    try {
+      await streamMsg.edit(chunk);
+    } catch {}
+  }
+
+  async _finalizeStreamMessage(streamMsg, text) {
+    const safeText = String(text || "").trim() || "(empty response)";
+    if (safeText.length <= 1900) {
+      try {
+        await streamMsg.edit(safeText);
+        return;
+      } catch {}
+    }
+
+    try {
+      await streamMsg.delete();
+    } catch {}
+
+    await this._sendMessage({ reply: (chunk) => streamMsg.channel.send(chunk) }, safeText);
   }
 
   async _sendMessage(msg, text) {

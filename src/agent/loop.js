@@ -17,7 +17,13 @@ const {
   listDirTool,
 } = require("../tools/filesystem");
 const { execTool } = require("../tools/shell");
-const { memoryReadTool, memoryWriteTool } = require("../tools/memory");
+const {
+  memoryReadTool,
+  memoryWriteTool,
+  memoryListTool,
+  memoryDeleteTool,
+} = require("../tools/memory");
+const { webSearchTool } = require("../tools/web");
 
 const MAX_ITERATIONS = parseInt(process.env.MAX_ITERATIONS || "20", 10);
 const CONTEXT_WINDOW = parseInt(process.env.CONTEXT_WINDOW || "65536", 10);
@@ -42,6 +48,9 @@ class AgentLoop {
     this.tools.register(execTool(workspace));
     this.tools.register(memoryReadTool());
     this.tools.register(memoryWriteTool());
+    this.tools.register(memoryListTool());
+    this.tools.register(memoryDeleteTool());
+    this.tools.register(webSearchTool());
 
     // Context builder
     this.contextBuilder = new ContextBuilder(workspace, this.tools);
@@ -55,7 +64,13 @@ class AgentLoop {
    * @param {string} chatId - Chat ID string
    * @returns {Promise<string>} - The assistant's final response
    */
-  async processMessage(sessionKey, userMessage, channel = "", chatId = "") {
+  async processMessage(
+    sessionKey,
+    userMessage,
+    channel = "",
+    chatId = "",
+    options = {},
+  ) {
     // Handle slash commands
     const cmdResponse = this._handleCommand(userMessage, channel);
     if (cmdResponse !== null) return cmdResponse;
@@ -77,7 +92,7 @@ class AgentLoop {
     await addMessage(sessionKey, "user", userMessage);
 
     // Run LLM iteration loop
-    const finalContent = await this._runLLMLoop(sessionKey, messages);
+    const finalContent = await this._runLLMLoop(sessionKey, messages, options);
 
     // Save assistant response
     await addMessage(sessionKey, "assistant", finalContent);
@@ -95,7 +110,7 @@ class AgentLoop {
   /**
    * Core LLM iteration loop with tool calling.
    */
-  async _runLLMLoop(sessionKey, messages) {
+  async _runLLMLoop(sessionKey, messages, options = {}) {
     const toolDefs = this.tools.toProviderDefs();
     let finalContent = "";
 
@@ -137,7 +152,12 @@ class AgentLoop {
       // No tool calls → final answer
       if (!response.tool_calls || response.tool_calls.length === 0) {
         finalContent = response.content;
+        await this._emitPartial(options, finalContent, true);
         break;
+      }
+
+      if (response.content) {
+        await this._emitPartial(options, response.content, false);
       }
 
       // Build assistant message with tool calls
@@ -161,14 +181,18 @@ class AgentLoop {
         assistantMsg.tool_calls,
       );
 
-      // Execute each tool call
-      for (const tc of response.tool_calls) {
-        console.log(
-          `[agent] Tool call: ${tc.name}(${JSON.stringify(tc.arguments).slice(0, 100)})`,
-        );
+      // Execute tool calls in parallel, preserve model order when appending messages.
+      const executed = await Promise.all(
+        response.tool_calls.map(async (tc) => {
+          console.log(
+            `[agent] Tool call: ${tc.name}(${JSON.stringify(tc.arguments).slice(0, 100)})`,
+          );
+          const result = await this.tools.execute(tc.name, tc.arguments, {});
+          return { tc, result };
+        }),
+      );
 
-        const result = await this.tools.execute(tc.name, tc.arguments, {});
-
+      for (const { tc, result } of executed) {
         const toolResultMsg = {
           role: "tool",
           content: result.forLLM || (result.isError ? "Error" : ""),
@@ -296,6 +320,16 @@ class AgentLoop {
     const kept = history.slice(mid);
     await setHistory(sessionKey, kept);
     console.warn(`[agent] Force compression: dropped ${mid} messages.`);
+  }
+
+  async _emitPartial(options, text, isFinal) {
+    const onUpdate = options && options.onUpdate;
+    if (typeof onUpdate !== "function") return;
+    try {
+      await onUpdate({ text: text || "", isFinal: !!isFinal });
+    } catch (err) {
+      console.warn("[agent] onUpdate callback failed:", err.message);
+    }
   }
 }
 

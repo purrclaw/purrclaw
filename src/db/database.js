@@ -230,6 +230,23 @@ async function setMemory(key, value) {
   );
 }
 
+async function listMemory(limit = 200) {
+  const db = getDb();
+  const safeLimit = Number.isFinite(limit)
+    ? Math.max(1, Math.min(limit, 1000))
+    : 200;
+  return db.all(
+    "SELECT key, value, updated_at FROM memory ORDER BY updated_at DESC LIMIT ?",
+    safeLimit,
+  );
+}
+
+async function deleteMemory(key) {
+  const db = getDb();
+  const result = await db.run("DELETE FROM memory WHERE key = ?", key);
+  return (result && result.changes) || 0;
+}
+
 // ─── State ───────────────────────────────────────────────────────────────────
 
 async function getState(key) {
@@ -265,6 +282,8 @@ module.exports = {
   // memory
   getMemory,
   setMemory,
+  listMemory,
+  deleteMemory,
   // state
   getState,
   setState,

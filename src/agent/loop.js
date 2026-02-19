@@ -31,6 +31,11 @@ const {
   reminderListTool,
   reminderDeleteTool,
 } = require("../tools/reminder");
+const {
+  spawnSubagentTool,
+  subagentStatusTool,
+  subagentResultTool,
+} = require("../tools/subagent");
 
 const MAX_ITERATIONS = parseInt(process.env.MAX_ITERATIONS || "20", 10);
 const CONTEXT_WINDOW = parseInt(process.env.CONTEXT_WINDOW || "65536", 10);
@@ -45,6 +50,7 @@ class AgentLoop {
     this.provider = provider;
     this.workspace = workspace;
     this.reminderService = options.reminderService || null;
+    this.subagentService = options.subagentService || null;
     this.summarizing = new Set();
 
     // Build tool registry
@@ -64,6 +70,9 @@ class AgentLoop {
     this.tools.register(reminderCreateTool(this.reminderService));
     this.tools.register(reminderListTool(this.reminderService));
     this.tools.register(reminderDeleteTool(this.reminderService));
+    this.tools.register(spawnSubagentTool(this.subagentService));
+    this.tools.register(subagentStatusTool(this.subagentService));
+    this.tools.register(subagentResultTool(this.subagentService));
 
     // Context builder
     this.contextBuilder = new ContextBuilder(workspace, this.tools);
@@ -209,6 +218,7 @@ class AgentLoop {
             channel: options.channel || "",
             chatId: options.chatId || "",
             toolTimeoutMs: Number(process.env.TOOL_TIMEOUT_MS || 45000),
+            canSpawnSubagents: options.canSpawnSubagents !== false,
           });
           return { tc, result };
         }),

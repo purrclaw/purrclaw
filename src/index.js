@@ -10,6 +10,7 @@ const { createProviderFromEnv } = require("./providers/factory");
 const { ChannelManager } = require("./channels/manager");
 const { createChannelsFromEnv } = require("./channels/factory");
 const { ReminderService } = require("./reminders/service");
+const { SubagentService } = require("./subagents/service");
 
 const WORKSPACE_DIR = path.resolve(process.env.WORKSPACE_DIR || "./workspace");
 const DB_PATH = path.join(WORKSPACE_DIR, "data", "purrclaw.db");
@@ -42,8 +43,25 @@ async function main() {
   );
 
   const reminderService = new ReminderService();
-  const agentLoop = new AgentLoop(provider, WORKSPACE_DIR, { reminderService });
+  const subagentService = new SubagentService();
+  const agentLoop = new AgentLoop(provider, WORKSPACE_DIR, {
+    reminderService,
+    subagentService,
+  });
   console.log(`✅ Agent loop ready (tools: ${agentLoop.tools.list().join(", ")})`);
+
+  subagentService.setRunner(async (taskItem) => {
+    const subSessionKey = `${taskItem.parentSessionKey}:subagent:${taskItem.id}`;
+    return agentLoop.processMessage(
+      subSessionKey,
+      taskItem.task,
+      taskItem.channel,
+      taskItem.chatId,
+      {
+        canSpawnSubagents: false,
+      },
+    );
+  });
 
   const channelInfo = createChannelsFromEnv({
     env: process.env,

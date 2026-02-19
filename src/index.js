@@ -9,6 +9,7 @@ const { AgentLoop } = require("./agent/loop");
 const { createProviderFromEnv } = require("./providers/factory");
 const { ChannelManager } = require("./channels/manager");
 const { createChannelsFromEnv } = require("./channels/factory");
+const { ReminderService } = require("./reminders/service");
 
 const WORKSPACE_DIR = path.resolve(process.env.WORKSPACE_DIR || "./workspace");
 const DB_PATH = path.join(WORKSPACE_DIR, "data", "purrclaw.db");
@@ -40,7 +41,8 @@ async function main() {
     `✅ Provider ready (${providerInfo.providerName}, model: ${providerInfo.model})`,
   );
 
-  const agentLoop = new AgentLoop(provider, WORKSPACE_DIR);
+  const reminderService = new ReminderService();
+  const agentLoop = new AgentLoop(provider, WORKSPACE_DIR, { reminderService });
   console.log(`✅ Agent loop ready (tools: ${agentLoop.tools.list().join(", ")})`);
 
   const channelInfo = createChannelsFromEnv({
@@ -51,6 +53,11 @@ async function main() {
 
   const channelManager = new ChannelManager(channelInfo.channels);
   await channelManager.start();
+
+  reminderService.setNotifier(async ({ channel, chatId, text, meta }) => {
+    await channelManager.send(channel, chatId, text, meta);
+  });
+  await reminderService.start();
 
   console.log(`✅ Channels started: ${channelInfo.enabled.join(", ")}`);
   console.log(

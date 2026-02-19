@@ -180,6 +180,19 @@ class DiscordChannel {
     }
   }
 
+  async sendProactive(chatId, text) {
+    if (!this.client) throw new Error("Discord client is not started");
+    const channel = await this.client.channels.fetch(String(chatId));
+    if (!channel || typeof channel.send !== "function") {
+      throw new Error(`Discord channel not found: ${chatId}`);
+    }
+
+    const safeText = String(text || "").trim() || "(empty response)";
+    for (let i = 0; i < safeText.length; i += 1900) {
+      await channel.send(safeText.slice(i, i + 1900));
+    }
+  }
+
   async stop() {
     if (this.client) {
       await this.client.destroy();

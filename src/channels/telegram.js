@@ -370,6 +370,12 @@ class TelegramChannel {
     }
   }
 
+  async sendProactive(chatId, text, meta = {}) {
+    const messageThreadId = meta.messageThreadId || null;
+    const htmlContent = markdownToTelegramHTML(String(text || ""));
+    await this._sendMessage(chatId, htmlContent, "HTML", messageThreadId);
+  }
+
   stop() {
     if (this.bot) {
       this.bot.stopPolling();

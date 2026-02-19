@@ -114,7 +114,10 @@ const webSearchTool = () => ({
       }
 
       const formatted = results
-        .map((r, i) => `${i + 1}. ${r.title}\nURL: ${r.url}\nSnippet: ${r.snippet}`)
+        .map(
+          (r, i) =>
+            `[${i + 1}] ${r.title}\nURL: ${r.url}\nSnippet: ${r.snippet}`,
+        )
         .join("\n\n");
 
       return {

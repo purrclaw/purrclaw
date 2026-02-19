@@ -1,6 +1,14 @@
 # PurrClaw 🐾
 
 [![Node.js](https://img.shields.io/badge/node-%3E%3D22-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
+[![SQLite](https://img.shields.io/badge/SQLite-003B57?logo=sqlite&logoColor=white)](https://www.sqlite.org/)
+[![Docker](https://img.shields.io/badge/Docker-2496ED?logo=docker&logoColor=white)](https://www.docker.com/)
+[![Telegram](https://img.shields.io/badge/Telegram-26A5E4?logo=telegram&logoColor=white)](https://core.telegram.org/bots/api)
+[![Discord](https://img.shields.io/badge/Discord-5865F2?logo=discord&logoColor=white)](https://discord.com/developers/docs/intro)
+[![Slack](https://img.shields.io/badge/Slack-4A154B?logo=slack&logoColor=white)](https://api.slack.com/)
+[![WhatsApp](https://img.shields.io/badge/WhatsApp-25D366?logo=whatsapp&logoColor=white)](https://wwebjs.dev/)
+[![DeepSeek](https://img.shields.io/badge/DeepSeek-API-0A0A0A)](https://api-docs.deepseek.com/)
+[![OpenAI Compatible](https://img.shields.io/badge/OpenAI-Compatible-412991)](https://platform.openai.com/docs/api-reference)
 
 Minimalist, secure, and local-first AI agent for modern messengers.
 Built with Node.js + SQLite + a provider-ready LLM layer.

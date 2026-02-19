@@ -6,4 +6,5 @@ workspace/data/
 *.db-wal
 *.db-shm
 .idea/
+deploy.sh
 setup.sh

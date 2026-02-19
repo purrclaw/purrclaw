@@ -1,5 +1,7 @@
 # PurrClaw 🐾
 
+[![Node.js](https://img.shields.io/badge/node-%3E%3D22-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
+
 Minimalist, secure, and local-first AI agent for modern messengers.
 Built with Node.js + SQLite + a provider-ready LLM layer.
 A practical alternative to heavy agent stacks like openclaw.
@@ -8,6 +10,12 @@ Runs with Telegram, Discord, Slack, and WhatsApp channels, and a pluggable provi
 Inspired by [picoclaw](https://github.com/sipeed/picoclaw).
 
 **Keywords:** openclaw alternative, ai agent, telegram ai agent, minimal ai agent, secure ai agent, nodejs ai agent, sqlite ai memory, tool-calling agent
+
+## TL;DR
+
+- Use PurrClaw if you want a practical self-hosted agent with tool calling and persistent memory.
+- It is optimized for small teams and solo builders who prefer simple Node.js architecture over heavy frameworks.
+- Start with Telegram + DeepSeek in minutes, then add providers/channels as needed.
 
 ## Why PurrClaw (vs openclaw-style stacks)
 
@@ -54,7 +62,22 @@ docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
 
 ## Configuration
 
-Edit `.env`:
+### Minimal setup (recommended first run)
+
+Start with this small config:
+
+```env
+PROVIDER=deepseek
+ENABLED_CHANNELS=telegram
+TELEGRAM_TOKEN=your_telegram_bot_token
+DEEPSEEK_API_KEY=your_deepseek_api_key
+DEEPSEEK_MODEL=deepseek-chat
+ALLOWED_IDENTITIES=telegram:user:123456789
+```
+
+### Full example
+
+Use this extended config when enabling more providers/channels/features:
 
 ```env
 PROVIDER=deepseek
@@ -131,27 +154,27 @@ Shared bot commands (`/start`, `/help`, `/reset`, `/model`, `/tools`) are suppor
 
 ## Available Tools
 
-| Tool           | Description                                |
-| -------------- | ------------------------------------------ |
-| `read_file`    | Read file contents from workspace          |
-| `write_file`   | Write content to a file                    |
-| `append_file`  | Append content to a file                   |
-| `list_dir`     | List directory contents                    |
-| `exec`         | Execute shell commands (with safety guard) |
-| `memory_read`  | Read from persistent key-value memory      |
-| `memory_write` | Write to persistent key-value memory       |
-| `memory_list`  | List memory keys and latest values         |
-| `memory_delete`| Delete memory entry by key                 |
-| `web_search`   | Search web (Brave if key set, else DDG)    |
-| `read_url`     | Fetch and extract text from a URL          |
+| Tool | Description |
+| ---- | ----------- |
+| `read_file` | Read file contents from workspace |
+| `write_file` | Write content to a file |
+| `append_file` | Append content to a file |
+| `list_dir` | List directory contents |
+| `exec` | Execute shell commands (with safety guard) |
+| `memory_read` | Read from persistent key-value memory |
+| `memory_write` | Write to persistent key-value memory |
+| `memory_list` | List memory keys and latest values |
+| `memory_delete` | Delete memory entry by key |
+| `web_search` | Search web (Brave if key set, else DDG) |
+| `read_url` | Fetch and extract text from a URL |
 | `workspace_search` | Find relevant lines across workspace files |
-| `reminder_create` | Set reminder in N seconds                |
-| `reminder_list`   | List pending reminders                   |
-| `reminder_delete` | Delete reminder by ID                    |
-| `spawn_subagent`  | Launch async subagent task               |
-| `subagent_status` | Check subagent status by ID              |
-| `subagent_result` | Read subagent final result               |
-| `subagent_list`   | List recent subagents for current session |
+| `reminder_create` | Set reminder in N seconds |
+| `reminder_list` | List pending reminders |
+| `reminder_delete` | Delete reminder by ID |
+| `spawn_subagent` | Launch async subagent task |
+| `subagent_status` | Check subagent status by ID |
+| `subagent_result` | Read subagent final result |
+| `subagent_list` | List recent subagents for current session |
 
 ## Use Cases
 

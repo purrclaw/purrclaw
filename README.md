@@ -88,6 +88,9 @@ CONTEXT_WINDOW=65536
 STREAMING_RESPONSES=true
 TOOL_TIMEOUT_MS=45000
 SUBAGENT_MAX_SECONDS=120
+SUBAGENT_MAX_CONCURRENT=3
+SUBAGENT_RETENTION_HOURS=24
+SUBAGENT_CLEANUP_INTERVAL_MS=600000
 DISCORD_REQUIRE_MENTION=true
 SLACK_REQUIRE_MENTION=true
 WHATSAPP_REQUIRE_PREFIX=@bot
@@ -123,6 +126,8 @@ Shared bot commands (`/start`, `/help`, `/reset`, `/model`, `/tools`) are suppor
 | `/reset` | Clear conversation history |
 | `/model` | Show current AI model      |
 | `/tools` | List available tools       |
+| `/subagents` | List subagents in current session |
+| `/subagent <id>` | Show status/result for one subagent |
 
 ## Available Tools
 
@@ -146,6 +151,7 @@ Shared bot commands (`/start`, `/help`, `/reset`, `/model`, `/tools`) are suppor
 | `spawn_subagent`  | Launch async subagent task               |
 | `subagent_status` | Check subagent status by ID              |
 | `subagent_result` | Read subagent final result               |
+| `subagent_list`   | List recent subagents for current session |
 
 ## Use Cases
 
@@ -155,7 +161,6 @@ Shared bot commands (`/start`, `/help`, `/reset`, `/model`, `/tools`) are suppor
 
 ## Roadmap
 
-- Parallel tool execution
 - Vision and voice input support
 - More channels and richer attachment handling
 - Provider routing and smarter model selection

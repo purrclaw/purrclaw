@@ -35,6 +35,7 @@ const {
   spawnSubagentTool,
   subagentStatusTool,
   subagentResultTool,
+  subagentListTool,
 } = require("../tools/subagent");
 
 const MAX_ITERATIONS = parseInt(process.env.MAX_ITERATIONS || "20", 10);
@@ -73,6 +74,7 @@ class AgentLoop {
     this.tools.register(spawnSubagentTool(this.subagentService));
     this.tools.register(subagentStatusTool(this.subagentService));
     this.tools.register(subagentResultTool(this.subagentService));
+    this.tools.register(subagentListTool(this.subagentService));
 
     // Context builder
     this.contextBuilder = new ContextBuilder(workspace, this.tools);
@@ -94,7 +96,7 @@ class AgentLoop {
     options = {},
   ) {
     // Handle slash commands
-    const cmdResponse = this._handleCommand(userMessage, channel);
+    const cmdResponse = await this._handleCommand(userMessage, channel, sessionKey);
     if (cmdResponse !== null) return cmdResponse;
 
     // Load history and summary
@@ -241,7 +243,7 @@ class AgentLoop {
   /**
    * Handle slash commands. Returns response string or null if not a command.
    */
-  _handleCommand(content, channel) {
+  async _handleCommand(content, channel, sessionKey) {
     const text = content.trim();
     if (!text.startsWith("/")) return null;
 
@@ -273,9 +275,55 @@ class AgentLoop {
           .list()
           .map((t) => `• ${t}`)
           .join("\n")}`;
+      case "/subagents":
+        return this._renderSubagents(sessionKey);
+      case "/subagent":
+        if (parts.length < 2) {
+          return "Usage: /subagent <id>";
+        }
+        return this._renderSubagent(sessionKey, parts[1]);
       default:
         return null;
     }
+  }
+
+  _renderSubagents(sessionKey) {
+    if (!this.subagentService) return "Subagent service is not configured.";
+    const items = this.subagentService.listBySession(sessionKey);
+    if (!items.length) return "No subagents for this session.";
+    return (
+      "🤝 Subagents:\n" +
+      items
+        .slice(0, 20)
+        .map((item) => `• ${item.id} | ${item.status} | ${item.task.slice(0, 60)}`)
+        .join("\n")
+    );
+  }
+
+  _renderSubagent(sessionKey, id) {
+    if (!this.subagentService) return "Subagent service is not configured.";
+    const item = this.subagentService.get(id);
+    if (!item || item.parentSessionKey !== sessionKey) {
+      return `Subagent not found: ${id}`;
+    }
+
+    if (item.status === "completed") {
+      return (
+        `🤝 Subagent ${item.id}\n` +
+        `Status: ${item.status}\n\n` +
+        `${item.result || "(empty result)"}`
+      );
+    }
+
+    if (item.status === "failed") {
+      return (
+        `🤝 Subagent ${item.id}\n` +
+        `Status: ${item.status}\n` +
+        `Error: ${item.error || "Unknown error"}`
+      );
+    }
+
+    return `🤝 Subagent ${item.id}\nStatus: ${item.status}`;
   }
 
   /**

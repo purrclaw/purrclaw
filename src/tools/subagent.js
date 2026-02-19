@@ -136,4 +136,31 @@ const subagentResultTool = (subagentService) => ({
   },
 });
 
-module.exports = { spawnSubagentTool, subagentStatusTool, subagentResultTool };
+const subagentListTool = (subagentService) => ({
+  name: "subagent_list",
+  description: "List subagents for the current session",
+  parameters: {
+    type: "object",
+    properties: {},
+    required: [],
+  },
+  async execute(args, context = {}) {
+    if (!subagentService) return noService();
+    const items = subagentService.listBySession(context.sessionKey || "");
+    if (!items.length) {
+      return { forLLM: "No subagents found.", forUser: "No subagents found.", isError: false };
+    }
+    const out = items
+      .slice(0, 20)
+      .map((item) => `${item.id} | ${item.status} | ${item.task.slice(0, 80)}`)
+      .join("\n");
+    return { forLLM: out, forUser: out, isError: false };
+  },
+});
+
+module.exports = {
+  spawnSubagentTool,
+  subagentStatusTool,
+  subagentResultTool,
+  subagentListTool,
+};

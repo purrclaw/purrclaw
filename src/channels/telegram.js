@@ -144,6 +144,35 @@ class TelegramChannel {
     console.log("[telegram] Bot started (polling mode)");
   }
 
+  _startTyping(chatId, messageThreadId = null) {
+    let stopped = false;
+    let timer = null;
+
+    const tick = async () => {
+      if (stopped) return;
+      try {
+        const opts = {};
+        if (messageThreadId) {
+          opts.message_thread_id = messageThreadId;
+        }
+        await this.bot.sendChatAction(chatId, "typing", opts);
+      } catch (err) {
+        console.warn("[telegram] Failed to send typing action:", err.message);
+      }
+
+      if (!stopped) {
+        timer = setTimeout(tick, 4000);
+      }
+    };
+
+    tick();
+
+    return () => {
+      stopped = true;
+      if (timer) clearTimeout(timer);
+    };
+  }
+
   async _handleMessage(msg) {
     if (!msg || !msg.from) return;
 
@@ -152,6 +181,7 @@ class TelegramChannel {
     const username = msg.from.username || "";
     const text = msg.text || msg.caption || "";
     const chatType = msg.chat.type || "";
+    const messageThreadId = msg.message_thread_id || null;
 
     if (!text) return;
 
@@ -168,7 +198,7 @@ class TelegramChannel {
       await addMessage(sessionKey, "user", text);
       await addMessage(sessionKey, "assistant", deniedText);
 
-      await this._sendMessage(chatId, deniedText);
+      await this._sendMessage(chatId, deniedText, null, messageThreadId);
 
       if (this._isGroupChat(chatType) && !this._isChatAllowed(chatId)) {
         try {
@@ -192,18 +222,16 @@ class TelegramChannel {
     // Handle /reset command specially (needs session key)
     if (text.trim() === "/reset") {
       await this.agentLoop.resetSession(sessionKey);
-      await this._sendMessage(chatId, "🔄 Conversation history cleared!");
+      await this._sendMessage(
+        chatId,
+        "🔄 Conversation history cleared!",
+        null,
+        messageThreadId,
+      );
       return;
     }
 
-    // Send "Thinking..." placeholder
-    let placeholderMsgId = null;
-    try {
-      const placeholder = await this.bot.sendMessage(chatId, "Thinking... 💭");
-      placeholderMsgId = placeholder.message_id;
-    } catch (err) {
-      console.error("[telegram] Failed to send placeholder:", err.message);
-    }
+    const stopTyping = this._startTyping(chatId, messageThreadId);
 
     try {
       const response = await this.agentLoop.processMessage(
@@ -214,45 +242,17 @@ class TelegramChannel {
       );
 
       const htmlContent = markdownToTelegramHTML(response);
-
-      // Try to edit the placeholder
-      if (placeholderMsgId) {
-        try {
-          await this.bot.editMessageText(htmlContent, {
-            chat_id: chatId,
-            message_id: placeholderMsgId,
-            parse_mode: "HTML",
-          });
-          return;
-        } catch (editErr) {
-          // Fallback: send new message
-          console.warn(
-            "[telegram] Edit failed, sending new message:",
-            editErr.message,
-          );
-        }
-      }
-
-      await this._sendMessage(chatId, htmlContent, "HTML");
+      await this._sendMessage(chatId, htmlContent, "HTML", messageThreadId);
     } catch (err) {
       console.error("[telegram] Error processing message:", err);
       const errMsg = `❌ Error: ${err.message}`;
-
-      if (placeholderMsgId) {
-        try {
-          await this.bot.editMessageText(errMsg, {
-            chat_id: chatId,
-            message_id: placeholderMsgId,
-          });
-          return;
-        } catch {}
-      }
-
-      await this._sendMessage(chatId, errMsg);
+      await this._sendMessage(chatId, errMsg, null, messageThreadId);
+    } finally {
+      stopTyping();
     }
   }
 
-  async _sendMessage(chatId, text, parseMode = null) {
+  async _sendMessage(chatId, text, parseMode = null, messageThreadId = null) {
     const MAX_LENGTH = 4096;
 
     // Split long messages
@@ -265,12 +265,15 @@ class TelegramChannel {
       try {
         const opts = {};
         if (parseMode) opts.parse_mode = parseMode;
+        if (messageThreadId) opts.message_thread_id = messageThreadId;
         await this.bot.sendMessage(chatId, chunk, opts);
       } catch (err) {
         // If HTML parse fails, send readable plain text without raw tags
         if (parseMode === "HTML") {
           try {
-            await this.bot.sendMessage(chatId, htmlToPlainText(chunk));
+            const fallbackOpts = {};
+            if (messageThreadId) fallbackOpts.message_thread_id = messageThreadId;
+            await this.bot.sendMessage(chatId, htmlToPlainText(chunk), fallbackOpts);
           } catch (e2) {
             console.error("[telegram] Failed to send message:", e2.message);
           }

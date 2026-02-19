@@ -38,7 +38,7 @@ ${runtime}
 
 ## Workspace
 Your workspace is at: ${this.workspace}
-- Memory: use memory_read / memory_write tools
+- Memory: use memory_read / memory_write / memory_list / memory_delete tools
 - Files: use read_file / write_file / list_dir tools
 
 ${toolsSection}

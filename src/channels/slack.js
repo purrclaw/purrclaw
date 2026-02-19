@@ -11,6 +11,7 @@ class SlackChannel {
     this.name = "slack";
     this.requireMentionInChannel =
       process.env.SLACK_REQUIRE_MENTION !== "false";
+    this.streamingEnabled = process.env.STREAMING_RESPONSES === "true";
   }
 
   _hasToken(token) {
@@ -112,6 +113,25 @@ class SlackChannel {
       });
     } catch {}
 
+    const threadTs = event.thread_ts || event.ts;
+
+    if (this.streamingEnabled) {
+      const stream = await this._startStreamMessage(client, event.channel, threadTs);
+      const response = await this.agentLoop.processMessage(
+        sessionKey,
+        text,
+        "slack",
+        channelId,
+        {
+          onUpdate: async ({ text: partialText }) => {
+            await this._updateStreamMessage(client, stream, partialText);
+          },
+        },
+      );
+      await this._finalizeStreamMessage(client, stream, response);
+      return;
+    }
+
     const response = await this.agentLoop.processMessage(
       sessionKey,
       text,
@@ -119,7 +139,7 @@ class SlackChannel {
       channelId,
     );
 
-    await this._sendMessage(say, response, event.thread_ts || event.ts);
+    await this._sendMessage(say, response, threadTs);
   }
 
   async _sendMessage(say, text, threadTs) {
@@ -128,6 +148,67 @@ class SlackChannel {
     for (let i = 0; i < text.length; i += MAX_LENGTH) {
       const chunk = text.slice(i, i + MAX_LENGTH) || "(empty response)";
       await say({ text: chunk, thread_ts: threadTs });
+    }
+  }
+
+  async _startStreamMessage(client, channel, threadTs) {
+    const posted = await client.chat.postMessage({
+      channel,
+      text: "⏳ Thinking...",
+      thread_ts: threadTs,
+    });
+    return {
+      channel,
+      threadTs,
+      ts: posted.ts,
+      updatedAt: 0,
+      lastText: "",
+    };
+  }
+
+  async _updateStreamMessage(client, stream, text) {
+    const now = Date.now();
+    if (now - stream.updatedAt < 900) return;
+    const safeText = String(text || "").trim();
+    if (!safeText || safeText === stream.lastText) return;
+
+    try {
+      await client.chat.update({
+        channel: stream.channel,
+        ts: stream.ts,
+        text: safeText.slice(0, 3000),
+      });
+      stream.updatedAt = now;
+      stream.lastText = safeText;
+    } catch {}
+  }
+
+  async _finalizeStreamMessage(client, stream, text) {
+    const safeText = String(text || "").trim() || "(empty response)";
+    if (safeText.length <= 3000) {
+      try {
+        await client.chat.update({
+          channel: stream.channel,
+          ts: stream.ts,
+          text: safeText,
+        });
+        return;
+      } catch {}
+    }
+
+    try {
+      await client.chat.delete({
+        channel: stream.channel,
+        ts: stream.ts,
+      });
+    } catch {}
+
+    for (let i = 0; i < safeText.length; i += 3000) {
+      await client.chat.postMessage({
+        channel: stream.channel,
+        text: safeText.slice(i, i + 3000),
+        thread_ts: stream.threadTs,
+      });
     }
   }
 

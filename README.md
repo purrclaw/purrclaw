@@ -37,6 +37,7 @@ Inspired by [picoclaw](https://github.com/sipeed/picoclaw).
 
 - 🤖 **Multi-provider architecture** — `deepseek`, `openai`, and generic `openai_compat` with optional fallback routing
 - 💬 **Multi-channel architecture** — `telegram`, `discord`, `slack`, and `whatsapp` via channel manager + env config
+- 📎 **Telegram file bridge** — incoming Telegram files are saved into `WORKSPACE_DIR`, and agent can send workspace files back to Telegram
 - 🗄️ **SQLite (`sqlite3` + `sqlite`)** — persistent session history, memory, and state
 - 🔧 **Agentic tool-calling** — read/write files, list directories, execute shell commands, persistent memory
 - 🧠 **Auto-summarization** — automatically compresses long-running chats to stay within context window
@@ -168,6 +169,7 @@ Shared bot commands (`/start`, `/help`, `/reset`, `/model`, `/tools`) are suppor
 | `write_file` | Write content to a file |
 | `append_file` | Append content to a file |
 | `list_dir` | List directory contents |
+| `send_telegram_file` | Send a workspace file to the current Telegram chat |
 | `exec` | Execute shell commands (with safety guard) |
 | `memory_read` | Read from persistent key-value memory |
 | `memory_write` | Write to persistent key-value memory |

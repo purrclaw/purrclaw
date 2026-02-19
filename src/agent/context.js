@@ -39,7 +39,8 @@ ${runtime}
 ## Workspace
 Your workspace is at: ${this.workspace}
 - Memory: use memory_read / memory_write / memory_list / memory_delete tools
-- Files: use read_file / write_file / list_dir tools
+- Files: use read_file / write_file / append_file / list_dir tools
+- Telegram files: use send_telegram_file to send workspace files back in Telegram chats
 
 ${toolsSection}
 

@@ -1,4 +1,7 @@
-
+const fs = require("fs");
+const path = require("path");
+const axios = require("axios");
+const { pipeline } = require("stream/promises");
 const TelegramBot = require("node-telegram-bot-api");
 const { addMessage } = require("../db/database");
 
@@ -100,6 +103,9 @@ class TelegramChannel {
     this.allowedIdentities = allowedIdentities;
     this.name = "telegram";
     this.streamingEnabled = process.env.STREAMING_RESPONSES === "true";
+    this.workspaceDir = path.resolve(
+      this.agentLoop?.workspace || process.env.WORKSPACE_DIR || "./workspace",
+    );
   }
 
   _hasToken(token) {
@@ -131,6 +137,7 @@ class TelegramChannel {
   }
 
   start() {
+    fs.mkdirSync(this.workspaceDir, { recursive: true });
     this.bot = new TelegramBot(this.token, { polling: true });
 
     this.bot.on("message", (msg) => this._handleMessage(msg));
@@ -175,29 +182,215 @@ class TelegramChannel {
     };
   }
 
+  _sanitizeFilename(name, fallback = "file") {
+    const base = path.basename(String(name || "").trim()) || fallback;
+    const sanitized = base
+      .replace(/[\u0000-\u001f<>:"/\\|?*]+/g, "_")
+      .replace(/\s+/g, "_")
+      .replace(/^_+|_+$/g, "");
+    return sanitized || fallback;
+  }
+
+  _buildUniqueWorkspacePath(filename) {
+    const parsed = path.parse(filename);
+    const baseName = parsed.name || "file";
+    const ext = parsed.ext || "";
+
+    let nextPath = path.join(this.workspaceDir, `${baseName}${ext}`);
+    let index = 0;
+    while (fs.existsSync(nextPath)) {
+      index += 1;
+      nextPath = path.join(this.workspaceDir, `${baseName}_${index}${ext}`);
+    }
+    return nextPath;
+  }
+
+  _collectIncomingFiles(msg) {
+    const files = [];
+    const stamp = Date.now();
+
+    if (msg.document?.file_id) {
+      files.push({
+        kind: "document",
+        fileId: msg.document.file_id,
+        filename:
+          msg.document.file_name ||
+          `document_${msg.document.file_unique_id || stamp}`,
+      });
+    }
+
+    if (Array.isArray(msg.photo) && msg.photo.length > 0) {
+      const photo = msg.photo[msg.photo.length - 1];
+      files.push({
+        kind: "photo",
+        fileId: photo.file_id,
+        filename: `photo_${photo.file_unique_id || stamp}.jpg`,
+      });
+    }
+
+    if (msg.video?.file_id) {
+      files.push({
+        kind: "video",
+        fileId: msg.video.file_id,
+        filename: msg.video.file_name || `video_${msg.video.file_unique_id || stamp}.mp4`,
+      });
+    }
+
+    if (msg.audio?.file_id) {
+      files.push({
+        kind: "audio",
+        fileId: msg.audio.file_id,
+        filename: msg.audio.file_name || `audio_${msg.audio.file_unique_id || stamp}.mp3`,
+      });
+    }
+
+    if (msg.voice?.file_id) {
+      files.push({
+        kind: "voice",
+        fileId: msg.voice.file_id,
+        filename: `voice_${msg.voice.file_unique_id || stamp}.ogg`,
+      });
+    }
+
+    if (msg.animation?.file_id) {
+      files.push({
+        kind: "animation",
+        fileId: msg.animation.file_id,
+        filename:
+          msg.animation.file_name ||
+          `animation_${msg.animation.file_unique_id || stamp}.mp4`,
+      });
+    }
+
+    if (msg.video_note?.file_id) {
+      files.push({
+        kind: "video_note",
+        fileId: msg.video_note.file_id,
+        filename: `video_note_${msg.video_note.file_unique_id || stamp}.mp4`,
+      });
+    }
+
+    if (msg.sticker?.file_id) {
+      const ext = msg.sticker.is_animated
+        ? ".tgs"
+        : msg.sticker.is_video
+          ? ".webm"
+          : ".webp";
+      files.push({
+        kind: "sticker",
+        fileId: msg.sticker.file_id,
+        filename: `sticker_${msg.sticker.file_unique_id || stamp}${ext}`,
+      });
+    }
+
+    return files;
+  }
+
+  async _downloadFileById(item) {
+    const fileMeta = await this.bot.getFile(item.fileId);
+    const fileLink = await this.bot.getFileLink(item.fileId);
+
+    const fromFilePath = this._sanitizeFilename(
+      path.basename(String(fileMeta?.file_path || "")),
+      "",
+    );
+    let filename = this._sanitizeFilename(
+      item.filename || fromFilePath || `${item.kind}_${Date.now()}`,
+    );
+
+    if (!path.extname(filename)) {
+      const extFromPath = path.extname(String(fileMeta?.file_path || ""));
+      if (extFromPath) {
+        filename = `${filename}${extFromPath}`;
+      }
+    }
+
+    const targetPath = this._buildUniqueWorkspacePath(filename);
+    const response = await axios({
+      method: "GET",
+      url: fileLink,
+      responseType: "stream",
+      timeout: 60000,
+      maxBodyLength: Infinity,
+      maxContentLength: Infinity,
+    });
+    await pipeline(response.data, fs.createWriteStream(targetPath));
+
+    return {
+      kind: item.kind,
+      absolutePath: targetPath,
+      relativePath:
+        path.relative(this.workspaceDir, targetPath) || path.basename(targetPath),
+    };
+  }
+
+  async _saveIncomingFiles(fileItems) {
+    if (!Array.isArray(fileItems) || fileItems.length === 0) {
+      return { saved: [], failed: [] };
+    }
+
+    fs.mkdirSync(this.workspaceDir, { recursive: true });
+
+    const saved = [];
+    const failed = [];
+
+    for (const item of fileItems) {
+      try {
+        const record = await this._downloadFileById(item);
+        saved.push(record);
+      } catch (err) {
+        failed.push({
+          kind: item.kind,
+          error: err.message,
+        });
+      }
+    }
+
+    return { saved, failed };
+  }
+
+  _buildSavedFilesBlock(savedFiles) {
+    if (!savedFiles.length) return "";
+    return [
+      "User uploaded files. Saved to workspace:",
+      ...savedFiles.map((item) => `- ${item.relativePath}`),
+    ].join("\n");
+  }
+
+  _buildFailedFilesBlock(failedFiles) {
+    if (!failedFiles.length) return "";
+    return [
+      "Failed to save some uploaded files:",
+      ...failedFiles.map((item) => `- ${item.kind}: ${item.error}`),
+    ].join("\n");
+  }
+
   async _handleMessage(msg) {
     if (!msg || !msg.from) return;
 
     const chatId = msg.chat.id;
     const userId = msg.from.id;
     const username = msg.from.username || "";
-    const text = msg.text || msg.caption || "";
+    const rawText = String(msg.text || msg.caption || "").trim();
     const chatType = msg.chat.type || "";
     const messageThreadId = msg.message_thread_id || null;
-
-    if (!text) return;
+    const incomingFiles = this._collectIncomingFiles(msg);
 
     const sessionKey = `telegram:${chatId}`;
     const channel = "telegram";
     const chatIdStr = String(chatId);
+
+    if (!rawText && incomingFiles.length === 0) return;
 
     if (!this._isAllowed(chatId, userId)) {
       console.warn(
         `[telegram] Rejected message from user ${userId} in chat ${chatId}: not in ALLOWED_IDENTITIES`,
       );
       const deniedText = "⛔ Access denied. This chat or user is not allowed.";
+      const deniedInputText =
+        rawText || `[${incomingFiles.length} uploaded file(s)]`;
 
-      await addMessage(sessionKey, "user", text);
+      await addMessage(sessionKey, "user", deniedInputText);
       await addMessage(sessionKey, "assistant", deniedText);
 
       await this._sendMessage(chatId, deniedText, null, messageThreadId);
@@ -217,12 +410,52 @@ class TelegramChannel {
       return;
     }
 
+    const { saved: savedFiles, failed: failedFiles } =
+      await this._saveIncomingFiles(incomingFiles);
+
+    if (failedFiles.length) {
+      console.error(
+        `[telegram] Failed to save ${failedFiles.length} file(s) in chat ${chatId}`,
+      );
+    }
+
+    const savedFilesBlock = this._buildSavedFilesBlock(savedFiles);
+    const failedFilesBlock = this._buildFailedFilesBlock(failedFiles);
+
+    if (!rawText && (savedFiles.length > 0 || failedFiles.length > 0)) {
+      const lines = [];
+      if (savedFiles.length > 0) {
+        lines.push(
+          "✅ Files saved to workspace:",
+          ...savedFiles.map((item) => `- ${item.relativePath}`),
+        );
+      }
+      if (failedFiles.length > 0) {
+        lines.push(
+          "⚠️ Failed to save:",
+          ...failedFiles.map((item) => `- ${item.kind}: ${item.error}`),
+        );
+      }
+      await this._sendMessage(chatId, lines.join("\n"), null, messageThreadId);
+      return;
+    }
+
+    let text = rawText;
+    if (savedFilesBlock) {
+      text = text ? `${text}\n\n${savedFilesBlock}` : savedFilesBlock;
+    }
+    if (failedFilesBlock) {
+      text = text ? `${text}\n\n${failedFilesBlock}` : failedFilesBlock;
+    }
+
+    if (!text) return;
+
     console.log(
       `[telegram] Message from ${userId}${username ? "@" + username : ""}: ${text.slice(0, 80)}`,
     );
 
     // Handle /reset command specially (needs session key)
-    if (text.trim() === "/reset") {
+    if (rawText === "/reset") {
       await this.agentLoop.resetSession(sessionKey);
       await this._sendMessage(
         chatId,
@@ -234,6 +467,9 @@ class TelegramChannel {
     }
 
     const stopTyping = this._startTyping(chatId, messageThreadId);
+    const sendTelegramFile = async ({ path: filePath, caption = "" } = {}) => {
+      await this._sendDocument(chatId, filePath, caption, messageThreadId);
+    };
 
     try {
       if (this.streamingEnabled) {
@@ -244,6 +480,7 @@ class TelegramChannel {
           channel,
           chatIdStr,
           {
+            sendTelegramFile,
             onUpdate: async ({ text: partialText }) => {
               await this._updateStreamMessage(stream, partialText);
             },
@@ -258,6 +495,9 @@ class TelegramChannel {
         text,
         channel,
         chatIdStr,
+        {
+          sendTelegramFile,
+        },
       );
 
       const htmlContent = markdownToTelegramHTML(response);
@@ -368,6 +608,13 @@ class TelegramChannel {
         }
       }
     }
+  }
+
+  async _sendDocument(chatId, filePath, caption = "", messageThreadId = null) {
+    const opts = {};
+    if (caption) opts.caption = String(caption).slice(0, 1024);
+    if (messageThreadId) opts.message_thread_id = messageThreadId;
+    await this.bot.sendDocument(chatId, filePath, opts);
   }
 
   async sendProactive(chatId, text, meta = {}) {

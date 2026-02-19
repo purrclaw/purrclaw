@@ -15,6 +15,7 @@ const {
   writeFileTool,
   appendFileTool,
   listDirTool,
+  sendTelegramFileTool,
 } = require("../tools/filesystem");
 const { execTool } = require("../tools/shell");
 const {
@@ -60,6 +61,7 @@ class AgentLoop {
     this.tools.register(writeFileTool(workspace, true));
     this.tools.register(appendFileTool(workspace, true));
     this.tools.register(listDirTool(workspace, true));
+    this.tools.register(sendTelegramFileTool(workspace, true));
     this.tools.register(execTool(workspace));
     this.tools.register(memoryReadTool());
     this.tools.register(memoryWriteTool());
@@ -219,6 +221,7 @@ class AgentLoop {
             sessionKey,
             channel: options.channel || "",
             chatId: options.chatId || "",
+            sendTelegramFile: options.sendTelegramFile,
             toolTimeoutMs: Number(process.env.TOOL_TIMEOUT_MS || 45000),
             canSpawnSubagents: options.canSpawnSubagents !== false,
           });

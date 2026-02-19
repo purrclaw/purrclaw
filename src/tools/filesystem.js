@@ -140,4 +140,83 @@ const listDirTool = (workspace, restrict = true) => ({
   },
 });
 
-module.exports = { readFileTool, writeFileTool, appendFileTool, listDirTool };
+// ─── send_telegram_file ──────────────────────────────────────────────────────
+
+const sendTelegramFileTool = (workspace, restrict = true) => ({
+  name: "send_telegram_file",
+  description:
+    "Send a file from the workspace to the current Telegram chat (Telegram sessions only)",
+  parameters: {
+    type: "object",
+    properties: {
+      path: { type: "string", description: "Path to the file in workspace" },
+      caption: {
+        type: "string",
+        description: "Optional caption for the file",
+      },
+    },
+    required: ["path"],
+  },
+  async execute(args, context = {}) {
+    const filePath = args.path;
+    const caption = args.caption ? String(args.caption) : "";
+
+    if (!filePath) {
+      return { forLLM: "path is required", forUser: "path is required", isError: true };
+    }
+
+    if (String(context.channel || "") !== "telegram") {
+      return {
+        forLLM: "send_telegram_file works only in Telegram sessions",
+        forUser: "send_telegram_file works only in Telegram sessions",
+        isError: true,
+      };
+    }
+
+    if (typeof context.sendTelegramFile !== "function") {
+      return {
+        forLLM: "Telegram sender is not available in this context",
+        forUser: "Telegram sender is not available in this context",
+        isError: true,
+      };
+    }
+
+    try {
+      const resolved = validatePath(filePath, workspace, restrict);
+      if (!fs.existsSync(resolved)) {
+        return {
+          forLLM: `File not found: ${filePath}`,
+          forUser: `File not found: ${filePath}`,
+          isError: true,
+        };
+      }
+
+      const stat = fs.statSync(resolved);
+      if (!stat.isFile()) {
+        return {
+          forLLM: `Not a file: ${filePath}`,
+          forUser: `Not a file: ${filePath}`,
+          isError: true,
+        };
+      }
+
+      await context.sendTelegramFile({ path: resolved, caption });
+
+      return {
+        forLLM: `File sent to Telegram: ${filePath}`,
+        forUser: `✅ File sent to Telegram: ${filePath}`,
+        isError: false,
+      };
+    } catch (err) {
+      return { forLLM: err.message, forUser: err.message, isError: true };
+    }
+  },
+});
+
+module.exports = {
+  readFileTool,
+  writeFileTool,
+  appendFileTool,
+  listDirTool,
+  sendTelegramFileTool,
+};

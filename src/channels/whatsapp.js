@@ -136,6 +136,11 @@ class WhatsAppChannel {
       console.log("[whatsapp] Client stopped");
     }
   }
+
+  async sendProactive(chatId, text) {
+    if (!this.client) throw new Error("WhatsApp client is not started");
+    await this.client.sendMessage(String(chatId), String(text || ""));
+  }
 }
 
 module.exports = { WhatsAppChannel };

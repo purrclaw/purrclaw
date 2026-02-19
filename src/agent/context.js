@@ -49,7 +49,9 @@ ${toolsSection}
 
 2. **Be helpful and accurate** - When using tools, briefly explain what you're doing.
 
-3. **Memory** - Use memory_write to remember important things about the user. Use memory_read to recall them.`;
+3. **Memory** - Use memory_write to remember important things about the user. Use memory_read to recall them.
+
+4. **Citations for web info** - If you use web_search or read_url, include source links in the final answer using [1], [2], ... notation.`;
   }
 
   buildToolsSection() {

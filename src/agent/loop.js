@@ -24,6 +24,13 @@ const {
   memoryDeleteTool,
 } = require("../tools/memory");
 const { webSearchTool } = require("../tools/web");
+const { readUrlTool } = require("../tools/fetch");
+const { workspaceSearchTool } = require("../tools/workspace_search");
+const {
+  reminderCreateTool,
+  reminderListTool,
+  reminderDeleteTool,
+} = require("../tools/reminder");
 
 const MAX_ITERATIONS = parseInt(process.env.MAX_ITERATIONS || "20", 10);
 const CONTEXT_WINDOW = parseInt(process.env.CONTEXT_WINDOW || "65536", 10);
@@ -34,9 +41,10 @@ class AgentLoop {
    * @param {import('../providers/deepseek').DeepSeekProvider} provider
    * @param {string} workspace
    */
-  constructor(provider, workspace) {
+  constructor(provider, workspace, options = {}) {
     this.provider = provider;
     this.workspace = workspace;
+    this.reminderService = options.reminderService || null;
     this.summarizing = new Set();
 
     // Build tool registry
@@ -51,6 +59,11 @@ class AgentLoop {
     this.tools.register(memoryListTool());
     this.tools.register(memoryDeleteTool());
     this.tools.register(webSearchTool());
+    this.tools.register(readUrlTool());
+    this.tools.register(workspaceSearchTool(workspace, true));
+    this.tools.register(reminderCreateTool(this.reminderService));
+    this.tools.register(reminderListTool(this.reminderService));
+    this.tools.register(reminderDeleteTool(this.reminderService));
 
     // Context builder
     this.contextBuilder = new ContextBuilder(workspace, this.tools);
@@ -92,7 +105,11 @@ class AgentLoop {
     await addMessage(sessionKey, "user", userMessage);
 
     // Run LLM iteration loop
-    const finalContent = await this._runLLMLoop(sessionKey, messages, options);
+    const finalContent = await this._runLLMLoop(sessionKey, messages, {
+      ...options,
+      channel,
+      chatId,
+    });
 
     // Save assistant response
     await addMessage(sessionKey, "assistant", finalContent);
@@ -187,7 +204,12 @@ class AgentLoop {
           console.log(
             `[agent] Tool call: ${tc.name}(${JSON.stringify(tc.arguments).slice(0, 100)})`,
           );
-          const result = await this.tools.execute(tc.name, tc.arguments, {});
+          const result = await this.tools.execute(tc.name, tc.arguments, {
+            sessionKey,
+            channel: options.channel || "",
+            chatId: options.chatId || "",
+            toolTimeoutMs: Number(process.env.TOOL_TIMEOUT_MS || 45000),
+          });
           return { tc, result };
         }),
       );

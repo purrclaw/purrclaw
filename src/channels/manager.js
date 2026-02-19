@@ -22,6 +22,14 @@ class ChannelManager {
   list() {
     return this.channels.map((c) => c.name || c.constructor.name);
   }
+
+  async send(channelName, chatId, text, meta = {}) {
+    const channel = this.channels.find((c) => c.name === channelName);
+    if (!channel || typeof channel.sendProactive !== "function") {
+      throw new Error(`Channel '${channelName}' does not support proactive send`);
+    }
+    await channel.sendProactive(chatId, text, meta);
+  }
 }
 
 module.exports = { ChannelManager };

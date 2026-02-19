@@ -19,11 +19,13 @@ Inspired by [picoclaw](https://github.com/sipeed/picoclaw).
 
 ## Features
 
-- 🤖 **Multi-provider architecture** — `deepseek`, `openai`, and generic `openai_compat`
+- 🤖 **Multi-provider architecture** — `deepseek`, `openai`, and generic `openai_compat` with optional fallback routing
 - 💬 **Multi-channel architecture** — `telegram`, `discord`, `slack`, and `whatsapp` via channel manager + env config
 - 🗄️ **SQLite (`sqlite3` + `sqlite`)** — persistent session history, memory, and state
 - 🔧 **Agentic tool-calling** — read/write files, list directories, execute shell commands, persistent memory
 - 🧠 **Auto-summarization** — automatically compresses long-running chats to stay within context window
+- ⏱️ **Tool execution guardrails** — per-tool timeout control via `TOOL_TIMEOUT_MS`
+- ⏰ **Reminders** — scheduled in-chat reminders with persistence
 - 📁 **Workspace** — customizable workspace with bootstrap files (AGENT.md, SOUL.md, etc.)
 
 ## Quick Start
@@ -55,6 +57,7 @@ Edit `.env`:
 
 ```env
 PROVIDER=deepseek
+FALLBACK_PROVIDER=openai_compat
 ENABLED_CHANNELS=telegram
 
 TELEGRAM_TOKEN=your_telegram_bot_token
@@ -73,12 +76,16 @@ OPENAI_BASE_URL=https://api.openai.com/v1
 OPENAI_COMPAT_API_KEY=your_compat_api_key
 OPENAI_COMPAT_BASE_URL=https://openrouter.ai/api/v1
 OPENAI_COMPAT_MODEL=gpt-4o-mini
+FALLBACK_OPENAI_COMPAT_API_KEY=your_fallback_key
+FALLBACK_OPENAI_COMPAT_BASE_URL=https://openrouter.ai/api/v1
+FALLBACK_OPENAI_COMPAT_MODEL=gpt-4o-mini
 BRAVE_SEARCH_API_KEY=your_brave_key_optional
 
 WORKSPACE_DIR=./workspace
 MAX_ITERATIONS=20
 CONTEXT_WINDOW=65536
 STREAMING_RESPONSES=true
+TOOL_TIMEOUT_MS=45000
 DISCORD_REQUIRE_MENTION=true
 SLACK_REQUIRE_MENTION=true
 WHATSAPP_REQUIRE_PREFIX=@bot
@@ -129,6 +136,11 @@ Shared bot commands (`/start`, `/help`, `/reset`, `/model`, `/tools`) are suppor
 | `memory_list`  | List memory keys and latest values         |
 | `memory_delete`| Delete memory entry by key                 |
 | `web_search`   | Search web (Brave if key set, else DDG)    |
+| `read_url`     | Fetch and extract text from a URL          |
+| `workspace_search` | Find relevant lines across workspace files |
+| `reminder_create` | Set reminder in N seconds                |
+| `reminder_list`   | List pending reminders                   |
+| `reminder_delete` | Delete reminder by ID                    |
 
 ## Use Cases
 
@@ -141,7 +153,7 @@ Shared bot commands (`/start`, `/help`, `/reset`, `/model`, `/tools`) are suppor
 - Parallel tool execution
 - Vision and voice input support
 - More channels and richer attachment handling
-- Provider routing, fallbacks, and per-task model selection
+- Provider routing and smarter model selection
 
 ## Project Structure
 
@@ -164,13 +176,19 @@ purrclaw/
 │   ├── providers/
 │   │   ├── factory.js        # Provider factory from env
 │   │   ├── openai_compat.js  # OpenAI-compatible base provider
-│   │   └── deepseek.js       # DeepSeek provider adapter
+│   │   ├── deepseek.js       # DeepSeek provider adapter
+│   │   └── fallback.js       # Fallback provider wrapper
+│   ├── reminders/
+│   │   └── service.js        # Scheduled reminder engine
 │   └── tools/
 │       ├── registry.js       # Tool registry
 │       ├── filesystem.js     # File system tools
 │       ├── shell.js          # Shell execution tool
 │       ├── memory.js         # Persistent memory tools
-│       └── web.js            # Web search tool
+│       ├── web.js            # Web search tool
+│       ├── fetch.js          # Read URL tool
+│       ├── workspace_search.js # RAG-lite workspace search
+│       └── reminder.js       # Reminder tools
 ├── workspace/
 │   ├── AGENT.md              # Agent instructions
 │   ├── IDENTITY.md           # Agent identity

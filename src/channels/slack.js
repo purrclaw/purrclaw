@@ -219,6 +219,19 @@ class SlackChannel {
       console.log("[slack] Bot stopped");
     }
   }
+
+  async sendProactive(chatId, text, meta = {}) {
+    if (!this.app) throw new Error("Slack app is not started");
+    const threadTs = meta.threadTs || undefined;
+    const safeText = String(text || "").trim() || "(empty response)";
+    for (let i = 0; i < safeText.length; i += 3000) {
+      await this.app.client.chat.postMessage({
+        channel: String(chatId),
+        text: safeText.slice(i, i + 3000),
+        thread_ts: threadTs,
+      });
+    }
+  }
 }
 
 module.exports = { SlackChannel };

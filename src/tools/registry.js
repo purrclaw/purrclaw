@@ -46,7 +46,20 @@ class ToolRegistry {
     }
 
     try {
-      const result = await tool.execute(args, context);
+      const timeoutMs = Number(
+        context.toolTimeoutMs || process.env.TOOL_TIMEOUT_MS || 45000,
+      );
+
+      const result = await Promise.race([
+        tool.execute(args, context),
+        new Promise((_, reject) => {
+          if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) return;
+          setTimeout(
+            () => reject(new Error(`Tool timeout after ${timeoutMs}ms`)),
+            timeoutMs,
+          );
+        }),
+      ]);
       return result;
     } catch (err) {
       return {

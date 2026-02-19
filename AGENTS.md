@@ -8,7 +8,7 @@ Personal AI agent for Telegram with agentic tool-calling loop, SQLite persistenc
 
 - **Runtime**: Node.js 22
 - **LLM Provider**: DeepSeek API
-- **Database**: SQLite (better-sqlite3)
+- **Database**: SQLite (`sqlite3` + `sqlite`)
 - **Channel**: Telegram Bot API
 - **Tools**: read_file, write_file, append_file, list_dir, exec, memory_read, memory_write
 

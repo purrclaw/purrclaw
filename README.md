@@ -8,7 +8,7 @@ Inspired by [picoclaw](https://github.com/sipeed/picoclaw).
 
 - 🤖 **DeepSeek AI** — powered by `deepseek-chat` model with full tool-calling support
 - 💬 **Telegram** — long-polling bot with "Thinking..." placeholder and HTML formatting
-- 🗄️ **SQLite** — persistent session history, memory, and state via `better-sqlite3`
+- 🗄️ **SQLite (`sqlite3` + `sqlite`)** — persistent session history, memory, and state
 - 🔧 **Tools** — read/write files, list directories, execute shell commands, persistent memory
 - 🧠 **Auto-summarization** — automatically compresses long conversations to stay within context window
 - 📁 **Workspace** — customizable workspace with bootstrap files (AGENT.md, SOUL.md, etc.)

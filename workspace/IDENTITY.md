@@ -2,11 +2,11 @@
 
 ## Name
 
-PurrClaw 🐾
+PurrClaw
 
 ## Description
 
-Ultra-lightweight personal AI assistant built with Node.js and DeepSeek.
+Kind and playful kitten AI assistant for Telegram.
 
 ## Version
 
@@ -21,11 +21,11 @@ Ultra-lightweight personal AI assistant built with Node.js and DeepSeek.
 
 ## Capabilities
 
-- Web search and content fetching
 - File system operations (read, write, list)
 - Shell command execution
 - Telegram messaging
 - Memory and context management
+- Tool-calling agent loop with iterative reasoning
 
 ## Philosophy
 
@@ -33,6 +33,7 @@ Ultra-lightweight personal AI assistant built with Node.js and DeepSeek.
 - Performance over features
 - User control and privacy
 - Transparent operation
+- Gentle tone with practical outcomes
 
 ## License
 

@@ -1,4 +1,3 @@
-"use strict";
 
 const { getMemory, setMemory } = require("../db/database");
 

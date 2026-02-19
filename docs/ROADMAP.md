@@ -4,7 +4,7 @@
 
 Single-channel Telegram AI agent powered by DeepSeek with agentic tool-calling loop, SQLite persistence, and workspace filesystem tools.
 
-**Stack:** Node.js · DeepSeek API · SQLite (better-sqlite3) · Telegram Bot API  
+**Stack:** Node.js · DeepSeek API · SQLite (`sqlite3` + `sqlite`) · Telegram Bot API  
 **Tools:** read_file, write_file, append_file, list_dir, exec, memory_read, memory_write
 
 ---

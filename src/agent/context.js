@@ -1,7 +1,7 @@
-
 const fs = require("fs");
 const path = require("path");
 const os = require("os");
+const { getDb } = require("../db/database");
 
 function normalizeProfileName(value) {
   return String(value || "")
@@ -70,10 +70,15 @@ function extractIdentityName(identityMarkdown = "") {
   return "";
 }
 
+function normalizeSourcePath(value = "") {
+  return String(value || "").split(path.sep).join("/");
+}
+
 class ContextBuilder {
   constructor(workspace, tools = null) {
     this.workspace = path.resolve(workspace);
     this.tools = tools;
+    this.profilesRoot = path.join(this.workspace, "profiles");
   }
 
   setTools(tools) {
@@ -151,14 +156,15 @@ ${summaries.join("\n")}`;
   }
 
   _resolveBootstrapSources(channel = "", profileHint = "") {
-    const files = [];
+    const dirs = [];
     const meta = [];
     const seen = new Set();
+
     const add = (dir, reason) => {
       const key = path.resolve(dir);
       if (seen.has(key)) return;
       seen.add(key);
-      files.push(key);
+      dirs.push(key);
       meta.push({
         dir: key,
         reason,
@@ -187,20 +193,63 @@ ${summaries.join("\n")}`;
     add(path.join(this.workspace, "profiles", "default"), "profiles_default");
     add(this.workspace, "workspace_root");
 
-    return {
-      existing: files.filter((dir) => fs.existsSync(dir)),
-      meta,
-    };
+    return { dirs, meta };
   }
 
-  loadBootstrapFiles(channel = "", profileHint = "") {
+  _toProfilesSourcePath(dir, filename) {
+    const relative = path.relative(this.profilesRoot, dir);
+    if (!relative || relative.startsWith("..") || path.isAbsolute(relative)) {
+      return "";
+    }
+    return normalizeSourcePath(path.join(relative, filename));
+  }
+
+  async _loadProfilesDocsMap(sourceInfo, files) {
+    let db;
+    try {
+      db = getDb();
+    } catch {
+      return new Map();
+    }
+
+    const sourcePaths = [];
+    for (const dir of sourceInfo.dirs) {
+      for (const filename of files) {
+        const sourcePath = this._toProfilesSourcePath(dir, filename);
+        if (sourcePath) {
+          sourcePaths.push(sourcePath);
+        }
+      }
+    }
+
+    const uniq = Array.from(new Set(sourcePaths));
+    if (uniq.length === 0) return new Map();
+
+    try {
+      const placeholders = uniq.map(() => "?").join(",");
+      const rows = await db.all(
+        `SELECT source_path, content FROM profiles_docs WHERE source_path IN (${placeholders})`,
+        ...uniq,
+      );
+      const map = new Map();
+      for (const row of rows) {
+        map.set(String(row.source_path || ""), String(row.content || ""));
+      }
+      return map;
+    } catch {
+      return new Map();
+    }
+  }
+
+  async loadBootstrapFiles(channel = "", profileHint = "") {
     const files = ["AGENT.md", "RULES.md", "SOUL.md", "USER.md", "IDENTITY.md"];
-    let result = "";
     const debug = isProfileDebugEnabled(channel);
 
     const pending = new Set(files);
     const sourceInfo = this._resolveBootstrapSources(channel, profileHint);
-    const sources = sourceInfo.existing;
+    const dbDocs = await this._loadProfilesDocsMap(sourceInfo, files);
+
+    let result = "";
 
     if (debug) {
       const workspaceProfile = normalizeProfileName(process.env.WORKSPACE_PROFILE || "") || "-";
@@ -214,9 +263,20 @@ ${summaries.join("\n")}`;
       }
     }
 
-    for (const dir of sources) {
+    for (const dir of sourceInfo.dirs) {
       for (const filename of files) {
         if (!pending.has(filename)) continue;
+
+        const sourcePath = this._toProfilesSourcePath(dir, filename);
+        if (sourcePath && dbDocs.has(sourcePath)) {
+          const content = dbDocs.get(sourcePath);
+          result += `## ${filename}\n\n${content}\n\n`;
+          pending.delete(filename);
+          if (debug) {
+            console.log(`[context] loaded ${filename} from db:${sourcePath}`);
+          }
+          continue;
+        }
 
         const filePath = path.join(dir, filename);
         if (fs.existsSync(filePath)) {
@@ -224,7 +284,7 @@ ${summaries.join("\n")}`;
           result += `## ${filename}\n\n${content}\n\n`;
           pending.delete(filename);
           if (debug) {
-            console.log(`[context] loaded ${filename} from ${filePath}`);
+            console.log(`[context] loaded ${filename} from fs:${filePath}`);
           }
         }
       }
@@ -242,31 +302,46 @@ ${summaries.join("\n")}`;
     return result;
   }
 
-  resolveIdentityName(channel = "", profileHint = "") {
+  async resolveIdentityName(channel = "", profileHint = "") {
     const sourceInfo = this._resolveBootstrapSources(channel, profileHint);
-    for (const dir of sourceInfo.existing) {
+    const dbDocs = await this._loadProfilesDocsMap(sourceInfo, ["IDENTITY.md"]);
+
+    for (const dir of sourceInfo.dirs) {
+      const sourcePath = this._toProfilesSourcePath(dir, "IDENTITY.md");
+      if (sourcePath && dbDocs.has(sourcePath)) {
+        const content = dbDocs.get(sourcePath);
+        const name = extractIdentityName(content);
+        if (name) {
+          if (isProfileDebugEnabled(channel)) {
+            console.log(`[context] identity_name=${name} from db:${sourcePath}`);
+          }
+          return name;
+        }
+      }
+
       const filePath = path.join(dir, "IDENTITY.md");
       if (!fs.existsSync(filePath)) continue;
       const content = fs.readFileSync(filePath, "utf8");
       const name = extractIdentityName(content);
       if (name) {
         if (isProfileDebugEnabled(channel)) {
-          console.log(`[context] identity_name=${name} from ${filePath}`);
+          console.log(`[context] identity_name=${name} from fs:${filePath}`);
         }
         return name;
       }
     }
+
     return "";
   }
 
-  buildSystemPrompt(channel = "", chatId = "", profileHint = "") {
+  async buildSystemPrompt(channel = "", chatId = "", profileHint = "") {
     const parts = [this.getIdentity(channel, profileHint)];
 
-    const bootstrap = this.loadBootstrapFiles(channel, profileHint);
+    const bootstrap = await this.loadBootstrapFiles(channel, profileHint);
     if (bootstrap) parts.push(bootstrap);
 
     if (isProfileDrivenContext(channel, profileHint)) {
-      const identityName = this.resolveIdentityName(channel, profileHint);
+      const identityName = await this.resolveIdentityName(channel, profileHint);
       if (identityName) {
         parts.push(
           `## Identity Lock\nUse this display name in conversation: ${identityName}\nIf asked your name, answer with exactly this name.`,
@@ -281,7 +356,7 @@ ${summaries.join("\n")}`;
     return parts.join("\n\n---\n\n");
   }
 
-  buildMessages(
+  async buildMessages(
     history,
     summary,
     currentMessage,
@@ -289,13 +364,12 @@ ${summaries.join("\n")}`;
     chatId = "",
     profileHint = "",
   ) {
-    let systemPrompt = this.buildSystemPrompt(channel, chatId, profileHint);
+    let systemPrompt = await this.buildSystemPrompt(channel, chatId, profileHint);
 
     if (summary) {
       systemPrompt += `\n\n## Summary of Previous Conversation\n\n${summary}`;
     }
 
-    // Remove orphaned tool messages at the start of history
     let cleanHistory = [...history];
     while (cleanHistory.length > 0 && cleanHistory[0].role === "tool") {
       cleanHistory.shift();

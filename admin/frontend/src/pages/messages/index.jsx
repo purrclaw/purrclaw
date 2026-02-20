@@ -12,10 +12,24 @@ import {
   Show,
   useForm,
 } from "@refinedev/antd";
-import { useShow } from "@refinedev/core";
-import { Table, Space, Typography, Tag, Input, Select, Form, InputNumber, Descriptions } from "antd";
+import { useShow, useNotification } from "@refinedev/core";
+import {
+  Table,
+  Space,
+  Typography,
+  Tag,
+  Input,
+  Select,
+  Form,
+  InputNumber,
+  Descriptions,
+  Button,
+  Popconfirm,
+} from "antd";
 
 const { Text, Paragraph } = Typography;
+
+const API_URL = import.meta.env.VITE_API_URL || `${window.location.origin}/api`;
 
 const ROLE_COLORS = {
   user: "blue",
@@ -26,16 +40,51 @@ const ROLE_COLORS = {
 
 const ROLE_OPTIONS = ["user", "assistant", "tool", "system"];
 
+function toCsv(rows) {
+  const columns = ["id", "session_key", "role", "content", "tool_calls", "tool_call_id", "created_at"];
+  const escape = (value) => {
+    const text = String(value ?? "");
+    if (text.includes(",") || text.includes("\n") || text.includes('"')) {
+      return `"${text.replaceAll('"', '""')}"`;
+    }
+    return text;
+  };
+
+  const header = columns.join(",");
+  const body = rows.map((row) => columns.map((column) => escape(row[column])).join(",")).join("\n");
+  return `${header}\n${body}`;
+}
+
+async function copyJson(value, open) {
+  await navigator.clipboard.writeText(JSON.stringify(value, null, 2));
+  open?.({
+    type: "success",
+    message: "Copied",
+    description: "JSON copied to clipboard",
+  });
+}
+
 export function MessagesList() {
   const [search, setSearch] = React.useState("");
   const [role, setRole] = React.useState();
   const [sessionKey, setSessionKey] = React.useState("");
+  const [selectedRowKeys, setSelectedRowKeys] = React.useState([]);
+  const [selectedRows, setSelectedRows] = React.useState([]);
+  const [isReadOnly, setIsReadOnly] = React.useState(false);
+  const { open } = useNotification();
 
-  const { tableProps, setFilters } = useTable({
+  const { tableProps, setFilters, tableQuery } = useTable({
     resource: "messages",
     sorters: { initial: [{ field: "id", order: "desc" }] },
     syncWithLocation: true,
   });
+
+  React.useEffect(() => {
+    fetch(`${API_URL}/admin/meta`)
+      .then((res) => res.json())
+      .then((data) => setIsReadOnly(Boolean(data?.readOnly)))
+      .catch(() => setIsReadOnly(false));
+  }, []);
 
   React.useEffect(() => {
     const filters = [];
@@ -51,10 +100,46 @@ export function MessagesList() {
     setFilters(filters, "replace");
   }, [search, role, sessionKey, setFilters]);
 
+  async function handleExportCsv() {
+    const csv = toCsv(selectedRows);
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `messages-${Date.now()}.csv`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+  }
+
+  async function handleBulkDelete() {
+    if (selectedRowKeys.length === 0) return;
+
+    const response = await fetch(`${API_URL}/messages/bulk-delete`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ids: selectedRowKeys }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(errorText || "Bulk delete failed");
+    }
+
+    const result = await response.json();
+    open?.({
+      type: "success",
+      message: "Bulk delete",
+      description: `Deleted ${result.deleted || 0} rows`,
+    });
+    setSelectedRowKeys([]);
+    setSelectedRows([]);
+    await tableQuery.refetch();
+  }
+
   return (
     <List
       headerButtons={
-        <Space>
+        <Space wrap>
           <Input.Search
             allowClear
             placeholder="Search messages"
@@ -76,11 +161,42 @@ export function MessagesList() {
             onChange={setRole}
             style={{ width: 140 }}
           />
-          <CreateButton />
+          <Button
+            disabled={selectedRows.length === 0}
+            onClick={handleExportCsv}
+          >
+            Export CSV
+          </Button>
+          <Button
+            disabled={selectedRows.length !== 1}
+            onClick={() => copyJson(selectedRows[0], open)}
+          >
+            Copy JSON Row
+          </Button>
+          <Popconfirm
+            title="Delete selected messages?"
+            description={`Rows selected: ${selectedRowKeys.length}`}
+            onConfirm={handleBulkDelete}
+            disabled={isReadOnly || selectedRowKeys.length === 0}
+          >
+            <Button danger disabled={isReadOnly || selectedRowKeys.length === 0}>Bulk Delete</Button>
+          </Popconfirm>
+          <CreateButton disabled={isReadOnly} />
         </Space>
       }
     >
-      <Table {...tableProps} rowKey="id" size="small">
+      <Table
+        {...tableProps}
+        rowKey="id"
+        size="small"
+        rowSelection={{
+          selectedRowKeys,
+          onChange: (keys, rows) => {
+            setSelectedRowKeys(keys);
+            setSelectedRows(rows);
+          },
+        }}
+      >
         <Table.Column dataIndex="id" title="#" width={70} sorter />
         <Table.Column
           dataIndex="session_key"
@@ -112,12 +228,21 @@ export function MessagesList() {
         <Table.Column dataIndex="created_at" title="Created" width={160} sorter render={(v) => <DateField value={v} />} />
         <Table.Column
           title="Actions"
-          width={140}
+          width={170}
           render={(_, r) => (
             <Space>
               <ShowButton hideText size="small" recordItemId={r.id} />
-              <EditButton hideText size="small" recordItemId={r.id} />
-              <DeleteButton hideText size="small" recordItemId={r.id} />
+              <EditButton hideText size="small" recordItemId={r.id} disabled={isReadOnly} />
+              <DeleteButton
+                hideText
+                size="small"
+                recordItemId={r.id}
+                disabled={isReadOnly}
+                confirmTitle="Delete message?"
+                confirmOkText="Delete"
+                confirmCancelText="Cancel"
+              />
+              <Button size="small" onClick={() => copyJson(r, open)}>JSON</Button>
             </Space>
           )}
         />

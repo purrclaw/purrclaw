@@ -6,7 +6,7 @@ import "@refinedev/antd/dist/reset.css";
 import { ConfigProvider, App as AntApp } from "antd";
 import dataProvider from "@refinedev/simple-rest";
 import routerProvider, { NavigateToResource } from "@refinedev/react-router";
-import { BrowserRouter, Routes, Route, Outlet } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Outlet, Link } from "react-router-dom";
 
 import {
   SettingOutlined,
@@ -14,6 +14,7 @@ import {
   ControlOutlined,
   MessageOutlined,
   KeyOutlined,
+  FileTextOutlined,
 } from "@ant-design/icons";
 
 import { SettingsList, SettingsCreate, SettingsEdit } from "./pages/settings";
@@ -21,8 +22,22 @@ import { MemoryList, MemoryCreate, MemoryEdit } from "./pages/memory";
 import { StateList, StateCreate, StateEdit } from "./pages/state";
 import { SessionsList, SessionsShow, SessionsCreate, SessionsEdit } from "./pages/sessions";
 import { MessagesList, MessagesCreate, MessagesEdit, MessagesShow } from "./pages/messages";
+import {
+  ProfilesDocsList,
+  ProfilesDocsCreate,
+  ProfilesDocsEdit,
+  ProfilesDocsShow,
+} from "./pages/profiles-docs";
 
 const API_URL = import.meta.env.VITE_API_URL || `${window.location.origin}/api`;
+
+function AdminTitle() {
+  return (
+    <Link to="/" style={{ color: "inherit", textDecoration: "none", fontWeight: 700, fontSize: 16 }}>
+      PurrClaw Admin
+    </Link>
+  );
+}
 
 export default function App() {
   const notificationProvider = useNotificationProvider();
@@ -73,11 +88,19 @@ export default function App() {
                 edit: "/messages/edit/:id",
                 meta: { label: "Messages", icon: <MessageOutlined /> },
               },
+              {
+                name: "profiles-docs",
+                list: "/profiles-docs",
+                show: "/profiles-docs/:id",
+                create: "/profiles-docs/create",
+                edit: "/profiles-docs/edit/:id",
+                meta: { label: "Profiles Docs", icon: <FileTextOutlined /> },
+              },
             ]}
             options={{ syncWithLocation: true }}
           >
             <Routes>
-              <Route element={<ThemedLayout Sider={ThemedSider}><Outlet /></ThemedLayout>}>
+              <Route element={<ThemedLayout Sider={ThemedSider} Title={AdminTitle}><Outlet /></ThemedLayout>}>
                 <Route index element={<NavigateToResource />} />
 
                 <Route path="settings">
@@ -110,6 +133,13 @@ export default function App() {
                   <Route path="create" element={<MessagesCreate />} />
                   <Route path="edit/:id" element={<MessagesEdit />} />
                   <Route path=":id" element={<MessagesShow />} />
+                </Route>
+
+                <Route path="profiles-docs">
+                  <Route index element={<ProfilesDocsList />} />
+                  <Route path="create" element={<ProfilesDocsCreate />} />
+                  <Route path="edit/:id" element={<ProfilesDocsEdit />} />
+                  <Route path=":id" element={<ProfilesDocsShow />} />
                 </Route>
               </Route>
             </Routes>

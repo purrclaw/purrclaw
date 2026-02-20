@@ -141,7 +141,7 @@ class AgentLoop {
     const summary = await getSessionSummary(sessionKey);
 
     // Build messages array
-    const messages = this.contextBuilder.buildMessages(
+    const messages = await this.contextBuilder.buildMessages(
       history,
       summary,
       userMessage,
@@ -218,7 +218,7 @@ class AgentLoop {
           // Rebuild messages after compression
           const history = await getSessionHistory(sessionKey);
           const summary = await getSessionSummary(sessionKey);
-          messages = this.contextBuilder.buildMessages(
+          messages = await this.contextBuilder.buildMessages(
             history,
             summary,
             "",

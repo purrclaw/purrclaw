@@ -13,7 +13,8 @@
     "admin:start": "node src/admin/index.js",
     "admin:backend:dev": "node --watch src/admin/index.js",
     "admin:build": "cd admin/frontend && bun run build",
-    "admin:dev": "cd admin/frontend && bun run dev"
+    "admin:dev": "cd admin/frontend && bun run dev",
+    "bot": "node src/scripts/bot_stack.js"
   },
   "dependencies": {
     "@slack/bolt": "^3.22.0",

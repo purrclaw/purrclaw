@@ -83,6 +83,10 @@ class TelegramUserChannel {
       String(process.env.TELEGRAM_USER_PROFILE_DEBUG || "false")
         .trim()
         .toLowerCase() !== "false";
+    this.typingEnabled =
+      String(process.env.TELEGRAM_USER_TYPING_INDICATOR || "true")
+        .trim()
+        .toLowerCase() !== "false";
     this.selfProfileHint = "";
     this.workspace = path.resolve(
       this.agentLoop?.workspace || process.env.WORKSPACE_DIR || "./workspace",
@@ -311,6 +315,62 @@ class TelegramUserChannel {
     }
   }
 
+  async _resolveInputPeer(chatId, msg = null) {
+    if (!this.client) return null;
+    if (msg && msg.peerId) {
+      try {
+        return await this.client.getInputEntity(msg.peerId);
+      } catch {}
+    }
+    try {
+      return await this.client.getInputEntity(chatId);
+    } catch {
+      return null;
+    }
+  }
+
+  async _sendTyping(chatId, msg = null) {
+    if (!this.typingEnabled || !this.client) return;
+    const peer = await this._resolveInputPeer(chatId, msg);
+    if (!peer) return;
+    await this.client.invoke(
+      new Api.messages.SetTyping({
+        peer,
+        action: new Api.SendMessageTypingAction(),
+      }),
+    );
+  }
+
+  _startTyping(chatId, msg = null) {
+    if (!this.typingEnabled || !this.client) {
+      return () => {};
+    }
+
+    let stopped = false;
+    let timer = null;
+
+    const tick = async () => {
+      if (stopped) return;
+      try {
+        await this._sendTyping(chatId, msg);
+      } catch (err) {
+        if (this.profileDebug) {
+          console.warn(`[telegram_user] typing failed in chat ${chatId}: ${err.message}`);
+        }
+      }
+      if (!stopped) {
+        timer = setTimeout(tick, 4000);
+      }
+    };
+
+    tick().catch(() => {});
+
+    return () => {
+      stopped = true;
+      if (timer) clearTimeout(timer);
+    };
+  }
+
   async _revoke(chatId) {
     try {
       await this.client.invoke(new Api.auth.LogOut());
@@ -413,6 +473,7 @@ class TelegramUserChannel {
 
     console.log(`[telegram_user] Message in chat ${chatId}: ${text.slice(0, 80)}`);
 
+    const stopTyping = this._startTyping(chatId, msg);
     try {
       console.log(`[telegram_user] profile_hint=${profileHint}`);
       console.log(`[telegram_user] session_key=${sessionKey}`);
@@ -429,6 +490,8 @@ class TelegramUserChannel {
     } catch (err) {
       console.error("[telegram_user] Error processing message:", err);
       await this._send(chatId, `Error: ${err.message}`);
+    } finally {
+      stopTyping();
     }
   }
 

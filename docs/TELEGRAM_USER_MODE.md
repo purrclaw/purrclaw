@@ -56,7 +56,8 @@ npm start
 
 - Incoming message from allowed peer -> processed by `AgentLoop` -> reply sent from your account.
 - Outgoing `/reset` (sent by you) clears all known session scopes for this chat (`legacy`, `fallback`, `self profile`, `sender profile`).
-- Outgoing `/revoke_session` (sent by you) logs out and deletes saved session.
+- `/revoke_session` is accepted only from the owner account of the active `telegram_user` session.
+- Any `/revoke_session` sent by non-owner accounts is ignored.
 - Outgoing `/loop_reset` (sent by you) clears loop guard counters for that chat.
 - Filesystem tools execute only when password is present in the same user message.
 - Profile auto-detection order for identity files:

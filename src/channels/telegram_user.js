@@ -275,6 +275,17 @@ class TelegramUserChannel {
     return Array.from(keys);
   }
 
+  _isOwnerCommand(msg, fromId, username) {
+    const isOutgoing = Boolean(msg && msg.out);
+    const senderId = String(fromId || "");
+    const selfId = String(this.selfId || "");
+    const senderHint = this._buildProfileHint(username || "");
+    const matchesSelfId = Boolean(selfId) && senderId === selfId;
+    const matchesSelfProfile =
+      Boolean(this.selfProfileHint) && senderHint === this.selfProfileHint;
+    return isOutgoing && (matchesSelfId || matchesSelfProfile);
+  }
+
   _peerAllowed(chatId, fromId, username) {
     if (this.allowedPeers.size === 0) return true;
 
@@ -421,7 +432,13 @@ class TelegramUserChannel {
       return;
     }
 
-    if (msg.out && text === "/revoke_session") {
+    if (text === "/revoke_session") {
+      if (!this._isOwnerCommand(msg, fromId, username)) {
+        console.warn(
+          `[telegram_user] Ignored /revoke_session from non-owner in chat ${chatId} (from=${fromId || "unknown"})`,
+        );
+        return;
+      }
       await this._revoke(chatId);
       return;
     }

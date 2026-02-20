@@ -56,6 +56,7 @@ async function initDb(dbPath) {
     );
 
     CREATE INDEX IF NOT EXISTS idx_messages_session ON messages(session_key, id);
+    CREATE INDEX IF NOT EXISTS idx_messages_created_at ON messages(created_at);
 
     CREATE TABLE IF NOT EXISTS memory (
       key        TEXT PRIMARY KEY,
@@ -68,7 +69,56 @@ async function initDb(dbPath) {
       value      TEXT NOT NULL,
       updated_at INTEGER NOT NULL
     );
+
+    CREATE TABLE IF NOT EXISTS settings (
+      key           TEXT PRIMARY KEY,
+      value         TEXT NOT NULL,
+      description   TEXT,
+      updated_at    INTEGER NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS profiles_docs (
+      id            INTEGER PRIMARY KEY AUTOINCREMENT,
+      profile       TEXT NOT NULL,
+      file_name     TEXT NOT NULL,
+      source_path   TEXT NOT NULL UNIQUE,
+      content       TEXT NOT NULL DEFAULT '',
+      source_mtime  INTEGER DEFAULT 0,
+      updated_at    INTEGER NOT NULL
+    );
+
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_profiles_docs_profile_file
+      ON profiles_docs(profile, file_name);
   `);
+
+    try {
+      await instance.exec(`
+      CREATE VIRTUAL TABLE IF NOT EXISTS messages_fts
+      USING fts5(content, session_key, role, content='messages', content_rowid='id');
+
+      CREATE TRIGGER IF NOT EXISTS messages_ai AFTER INSERT ON messages BEGIN
+        INSERT INTO messages_fts(rowid, content, session_key, role)
+        VALUES (new.id, new.content, new.session_key, new.role);
+      END;
+
+      CREATE TRIGGER IF NOT EXISTS messages_ad AFTER DELETE ON messages BEGIN
+        INSERT INTO messages_fts(messages_fts, rowid, content, session_key, role)
+        VALUES('delete', old.id, old.content, old.session_key, old.role);
+      END;
+
+      CREATE TRIGGER IF NOT EXISTS messages_au AFTER UPDATE ON messages BEGIN
+        INSERT INTO messages_fts(messages_fts, rowid, content, session_key, role)
+        VALUES('delete', old.id, old.content, old.session_key, old.role);
+        INSERT INTO messages_fts(rowid, content, session_key, role)
+        VALUES (new.id, new.content, new.session_key, new.role);
+      END;
+
+      INSERT INTO messages_fts(rowid, content, session_key, role)
+      SELECT m.id, m.content, m.session_key, m.role
+      FROM messages m
+      WHERE NOT EXISTS (SELECT 1 FROM messages_fts f WHERE f.rowid = m.id);
+      `);
+    } catch {}
 
     db = instance;
     return db;
@@ -268,6 +318,39 @@ async function setState(key, value) {
   );
 }
 
+// ─── Settings ────────────────────────────────────────────────────────────────
+
+async function getAllSettings() {
+  const db = getDb();
+  return db.all("SELECT key, value, description, updated_at FROM settings");
+}
+
+async function getSetting(key) {
+  const db = getDb();
+  const row = await db.get("SELECT value FROM settings WHERE key = ?", key);
+  return row ? row.value : null;
+}
+
+async function setSetting(key, value, description = "") {
+  const db = getDb();
+  await db.run(
+    `
+    INSERT INTO settings (key, value, description, updated_at) VALUES (?, ?, ?, ?)
+    ON CONFLICT(key) DO UPDATE SET value = excluded.value, description = excluded.description, updated_at = excluded.updated_at
+  `,
+    key,
+    value,
+    description,
+    Date.now(),
+  );
+}
+
+async function deleteSetting(key) {
+  const db = getDb();
+  const result = await db.run("DELETE FROM settings WHERE key = ?", key);
+  return (result?.changes) || 0;
+}
+
 module.exports = {
   initDb,
   getDb,
@@ -287,4 +370,9 @@ module.exports = {
   // state
   getState,
   setState,
+  // settings
+  getAllSettings,
+  getSetting,
+  setSetting,
+  deleteSetting,
 };

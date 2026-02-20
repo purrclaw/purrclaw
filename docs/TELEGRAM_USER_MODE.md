@@ -30,6 +30,7 @@ Notes:
 - `TELEGRAM_PROFILE_HINT` can be set on the `telegram` bot channel to emulate a `telegram_user_@username` profile in bot chat for solo testing.
 - `TELEGRAM_USER_BOT_LOOP_DELAY_MS` adds delay between bot-to-bot turns when loop mode is enabled.
 - `TELEGRAM_USER_BOT_LOOP_MAX_TURNS` limits loop length per chat (use `/loop_reset` to continue).
+- `TELEGRAM_USER_TYPING_INDICATOR=true` enables typing indicator while generating responses.
 
 ## One-time authorization
 

@@ -4,6 +4,7 @@
 [![SQLite](https://img.shields.io/badge/SQLite-003B57?logo=sqlite&logoColor=white)](https://www.sqlite.org/)
 [![Docker](https://img.shields.io/badge/Docker-2496ED?logo=docker&logoColor=white)](https://www.docker.com/)
 [![Telegram](https://img.shields.io/badge/Telegram-26A5E4?logo=telegram&logoColor=white)](https://core.telegram.org/bots/api)
+[![Telegram User API](https://img.shields.io/badge/Telegram-MTProto-26A5E4?logo=telegram&logoColor=white)](https://core.telegram.org/api)
 [![Discord](https://img.shields.io/badge/Discord-5865F2?logo=discord&logoColor=white)](https://discord.com/developers/docs/intro)
 [![Slack](https://img.shields.io/badge/Slack-4A154B?logo=slack&logoColor=white)](https://api.slack.com/)
 [![WhatsApp](https://img.shields.io/badge/WhatsApp-25D366?logo=whatsapp&logoColor=white)](https://wwebjs.dev/)
@@ -36,7 +37,7 @@ Inspired by [picoclaw](https://github.com/sipeed/picoclaw).
 ## Features
 
 - 🤖 **Multi-provider architecture** — `deepseek`, `openai`, and generic `openai_compat` with optional fallback routing
-- 💬 **Multi-channel architecture** — `telegram`, `discord`, `slack`, and `whatsapp` via channel manager + env config
+- 💬 **Multi-channel architecture** — `telegram`, `telegram_user`, `discord`, `slack`, and `whatsapp` via channel manager + env config
 - 📎 **Telegram file bridge** — incoming Telegram files are saved into `WORKSPACE_DIR`, and agent can send workspace files back to Telegram
 - 🗄️ **SQLite (`sqlite3` + `sqlite`)** — persistent session history, memory, and state
 - 🔧 **Agentic tool-calling** — read/write files, list directories, execute shell commands, persistent memory
@@ -57,6 +58,30 @@ cp .env.example .env
 
 # Start
 npm start
+```
+
+## Telegram Modes
+
+- Bot account mode (Bot API): see `docs/TELEGRAM_BOT_MODE.md`
+- Personal account mode (MTProto): see `docs/TELEGRAM_USER_MODE.md`
+
+### Identity Profiles
+
+Bootstrap identity files (`AGENT.md`, `RULES.md`, `SOUL.md`, `USER.md`, `IDENTITY.md`) can be split by mode:
+
+- `workspace/profiles/telegram_user/` for `ENABLED_CHANNELS=telegram_user`
+- `workspace/profiles/telegram_user_@username/` for per-user Telegram user profiles
+- `workspace/profiles/telegram/` for `ENABLED_CHANNELS=telegram`
+- `workspace/profiles/default/` as shared fallback
+- `workspace/` as final fallback
+
+For `telegram_user`, when incoming sender has username, profile hint is auto-detected as:
+- `telegram_user_@username` (example: `workspace/profiles/telegram_user_@username/`)
+
+Optional override:
+
+```env
+WORKSPACE_PROFILE=your_profile_name
 ```
 
 ## Docker
@@ -94,6 +119,8 @@ FALLBACK_PROVIDER=openai_compat
 ENABLED_CHANNELS=telegram
 
 TELEGRAM_TOKEN=your_telegram_bot_token
+TELEGRAM_API_ID=123456
+TELEGRAM_API_HASH=your_telegram_api_hash
 DISCORD_TOKEN=your_discord_bot_token
 SLACK_BOT_TOKEN=xoxb-...
 SLACK_APP_TOKEN=xapp-...
@@ -127,6 +154,12 @@ DISCORD_REQUIRE_MENTION=true
 SLACK_REQUIRE_MENTION=true
 WHATSAPP_REQUIRE_PREFIX=@bot
 WHATSAPP_CLIENT_ID=purrclaw
+FS_ACCESS_PASSWORD=123123
+TELEGRAM_PROFILE_HINT=telegram_user_@username
+TELEGRAM_USER_ALLOWED_PEERS=123456789,@trusted_username
+TELEGRAM_USER_IGNORE_BOT_SENDERS=true
+TELEGRAM_USER_BOT_LOOP_DELAY_MS=2000
+TELEGRAM_USER_BOT_LOOP_MAX_TURNS=8
 ALLOWED_IDENTITIES=telegram:user:123456789,telegram:chat:-1001234567890,discord:user:123456789012345678,discord:guild:123456789012345678,slack:user:U12345678,slack:channel:C12345678,slack:team:T12345678,whatsapp:contact:1234567890@c.us,whatsapp:chat:1234567890@c.us
 ```
 
@@ -134,6 +167,10 @@ ALLOWED_IDENTITIES=telegram:user:123456789,telegram:chat:-1001234567890,discord:
 
 Set `ALLOWED_IDENTITIES` in production.
 Running with an empty allowlist is for local testing only.
+In `NODE_ENV=production`, startup now fails fast if:
+- `ALLOWED_IDENTITIES` is empty for bot-style channels (`telegram`, `discord`, `slack`, `whatsapp`)
+- `TELEGRAM_USER_ALLOWED_PEERS` is empty when `telegram_user` is enabled
+- `FS_ACCESS_PASSWORD` is empty
 
 Supported tokens:
 - `telegram:user:123456789`
@@ -160,6 +197,20 @@ Shared bot commands (`/start`, `/help`, `/reset`, `/model`, `/tools`) are suppor
 | `/tools` | List available tools       |
 | `/subagents` | List subagents in current session |
 | `/subagent <id>` | Show status/result for one subagent |
+
+For `telegram_user` channel flow (login/revoke/peer allowlist), see `docs/TELEGRAM_USER_MODE.md`.
+
+For self-testing `telegram_user` profile via bot chat without loop:
+- Run both channels: `ENABLED_CHANNELS=telegram,telegram_user`
+- Keep `TELEGRAM_USER_IGNORE_BOT_SENDERS=true`
+- Set `TELEGRAM_PROFILE_HINT=telegram_user_@username`
+- Talk to your bot normally (`telegram` channel), responses will use that profile hint.
+
+For controlled bot-to-bot loop testing:
+- Set `TELEGRAM_USER_IGNORE_BOT_SENDERS=false`
+- Set `TELEGRAM_USER_BOT_LOOP_DELAY_MS=2000` (or higher)
+- Set `TELEGRAM_USER_BOT_LOOP_MAX_TURNS=8`
+- Send `/loop_reset` from your user account to resume next loop cycle after limit is reached.
 
 ## Available Tools
 

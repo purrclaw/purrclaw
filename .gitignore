@@ -8,3 +8,4 @@ workspace/data/
 .idea/
 deploy.sh
 setup.sh
+/**/telegram_user_*

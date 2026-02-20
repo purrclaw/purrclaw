@@ -5,7 +5,10 @@
   "main": "src/index.js",
   "scripts": {
     "start": "node src/index.js",
-    "dev": "node --watch src/index.js"
+    "dev": "node --watch src/index.js",
+    "test": "node --test",
+    "telegram:user:login": "node src/scripts/telegram_user_login.js",
+    "telegram:user:revoke": "node src/scripts/telegram_user_revoke.js"
   },
   "dependencies": {
     "@slack/bolt": "^3.22.0",
@@ -16,6 +19,7 @@
     "qrcode-terminal": "^0.12.0",
     "sqlite": "^5.1.1",
     "sqlite3": "^5.1.7",
+    "telegram": "^2.26.22",
     "whatsapp-web.js": "^1.34.6"
   }
 }

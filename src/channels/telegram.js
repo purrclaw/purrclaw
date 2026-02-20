@@ -94,8 +94,14 @@ class TelegramChannel {
    * @param {string} token - Telegram bot token
    * @param {import('../agent/loop').AgentLoop} agentLoop
    * @param {Set<string>} allowedIdentities
+   * @param {{ profileHint?: string }} options
    */
-  constructor(token, agentLoop, allowedIdentities = new Set()) {
+  constructor(
+    token,
+    agentLoop,
+    allowedIdentities = new Set(),
+    options = {},
+  ) {
     this.token = token;
     this.agentLoop = agentLoop;
     this.bot = null;
@@ -106,6 +112,7 @@ class TelegramChannel {
     this.workspaceDir = path.resolve(
       this.agentLoop?.workspace || process.env.WORKSPACE_DIR || "./workspace",
     );
+    this.profileHint = String(options.profileHint || "").trim();
   }
 
   _hasToken(token) {
@@ -481,6 +488,7 @@ class TelegramChannel {
           chatIdStr,
           {
             sendTelegramFile,
+            profileHint: this.profileHint,
             onUpdate: async ({ text: partialText }) => {
               await this._updateStreamMessage(stream, partialText);
             },
@@ -497,6 +505,7 @@ class TelegramChannel {
         chatIdStr,
         {
           sendTelegramFile,
+          profileHint: this.profileHint,
         },
       );
 

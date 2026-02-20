@@ -10,10 +10,14 @@ const { ChannelManager } = require("./channels/manager");
 const { createChannelsFromEnv } = require("./channels/factory");
 const { ReminderService } = require("./reminders/service");
 const { SubagentService } = require("./subagents/service");
+const { startAdminServer } = require("./admin/backend/server");
+const { getAllSettings, setSetting } = require("./db/database");
+const fs = require("fs");
+const dotenv = require("dotenv");
 
 const WORKSPACE_DIR = path.resolve(process.env.WORKSPACE_DIR || "./workspace");
 const DB_PATH = path.join(WORKSPACE_DIR, "data", "purrclaw.db");
-const ALLOWED_IDENTITIES_RAW = process.env.ALLOWED_IDENTITIES;
+const EMBED_ADMIN = String(process.env.ADMIN_EMBEDDED || "").trim().toLowerCase() === "true";
 
 function parseAllowlist(raw) {
   if (!raw || !raw.trim()) return new Set();
@@ -25,17 +29,51 @@ function parseAllowlist(raw) {
   );
 }
 
-const allowedIdentities = parseAllowlist(ALLOWED_IDENTITIES_RAW || "");
+async function syncEnvToDb() {
+  const dbSettings = await getAllSettings();
+  const dbKeys = new Set(dbSettings.map(s => s.key));
+  
+  // Read all potential keys from .env.example and .env
+  let envSource = {};
+  if (fs.existsSync(".env.example")) {
+    Object.assign(envSource, dotenv.parse(fs.readFileSync(".env.example")));
+  }
+  if (fs.existsSync(".env")) {
+    Object.assign(envSource, dotenv.parse(fs.readFileSync(".env")));
+  }
+  
+  for (const [key, value] of Object.entries(envSource)) {
+    if (!dbKeys.has(key)) {
+      await setSetting(key, value || "", `Auto-imported from .env`);
+    }
+  }
+  return await getAllSettings();
+}
 
 async function main() {
-  enforceSecurityPolicy(process.env, allowedIdentities);
-
   console.log("🐾 PurrClaw starting up...");
   console.log(`   Workspace: ${WORKSPACE_DIR}`);
   console.log(`   Database:  ${DB_PATH}`);
 
   await initDb(DB_PATH);
   console.log("✅ Database initialized");
+
+  const fullSettings = await syncEnvToDb();
+  for (const row of fullSettings) {
+    if (row.value) {
+      process.env[row.key] = row.value;
+    }
+  }
+  console.log("✅ Settings synchronized with DB");
+
+  const allowedIdentities = parseAllowlist(process.env.ALLOWED_IDENTITIES || "");
+  enforceSecurityPolicy(process.env, allowedIdentities);
+
+  if (EMBED_ADMIN) {
+    startAdminServer(process.env.ADMIN_PORT || 3000);
+  } else {
+    console.log("ℹ️ Embedded admin server disabled (set ADMIN_EMBEDDED=true to enable)");
+  }
 
   const providerInfo = createProviderFromEnv(process.env);
   const provider = providerInfo.provider;

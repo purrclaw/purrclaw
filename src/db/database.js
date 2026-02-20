@@ -68,6 +68,13 @@ async function initDb(dbPath) {
       value      TEXT NOT NULL,
       updated_at INTEGER NOT NULL
     );
+
+    CREATE TABLE IF NOT EXISTS settings (
+      key           TEXT PRIMARY KEY,
+      value         TEXT NOT NULL,
+      description   TEXT,
+      updated_at    INTEGER NOT NULL
+    );
   `);
 
     db = instance;
@@ -268,6 +275,39 @@ async function setState(key, value) {
   );
 }
 
+// ─── Settings ────────────────────────────────────────────────────────────────
+
+async function getAllSettings() {
+  const db = getDb();
+  return db.all("SELECT key, value, description, updated_at FROM settings");
+}
+
+async function getSetting(key) {
+  const db = getDb();
+  const row = await db.get("SELECT value FROM settings WHERE key = ?", key);
+  return row ? row.value : null;
+}
+
+async function setSetting(key, value, description = "") {
+  const db = getDb();
+  await db.run(
+    `
+    INSERT INTO settings (key, value, description, updated_at) VALUES (?, ?, ?, ?)
+    ON CONFLICT(key) DO UPDATE SET value = excluded.value, description = excluded.description, updated_at = excluded.updated_at
+  `,
+    key,
+    value,
+    description,
+    Date.now(),
+  );
+}
+
+async function deleteSetting(key) {
+  const db = getDb();
+  const result = await db.run("DELETE FROM settings WHERE key = ?", key);
+  return (result?.changes) || 0;
+}
+
 module.exports = {
   initDb,
   getDb,
@@ -287,4 +327,9 @@ module.exports = {
   // state
   getState,
   setState,
+  // settings
+  getAllSettings,
+  getSetting,
+  setSetting,
+  deleteSetting,
 };

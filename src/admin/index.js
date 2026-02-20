@@ -6,7 +6,9 @@ const { startAdminServer } = require("./backend/server");
 loadEnv();
 
 const WORKSPACE_DIR = path.resolve(process.env.WORKSPACE_DIR || "./workspace");
-const DB_PATH = path.join(WORKSPACE_DIR, "data", "purrclaw.db");
+const DB_PATH = process.env.ADMIN_DB_PATH
+  ? path.resolve(process.env.ADMIN_DB_PATH)
+  : path.join(WORKSPACE_DIR, "data", "purrclaw.db");
 const ADMIN_PORT = Number(process.env.ADMIN_PORT || 3010);
 
 async function main() {

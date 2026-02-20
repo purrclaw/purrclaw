@@ -18,9 +18,9 @@ import {
 
 import { SettingsList, SettingsCreate, SettingsEdit } from "./pages/settings";
 import { MemoryList, MemoryCreate, MemoryEdit } from "./pages/memory";
-import { StateList, StateEdit } from "./pages/state";
-import { SessionsList, SessionsShow } from "./pages/sessions";
-import { MessagesList } from "./pages/messages";
+import { StateList, StateCreate, StateEdit } from "./pages/state";
+import { SessionsList, SessionsShow, SessionsCreate, SessionsEdit } from "./pages/sessions";
+import { MessagesList, MessagesCreate, MessagesEdit, MessagesShow } from "./pages/messages";
 
 const API_URL = import.meta.env.VITE_API_URL || `${window.location.origin}/api`;
 
@@ -38,33 +38,39 @@ export default function App() {
             resources={[
               {
                 name: "settings",
-                list:   "/settings",
+                list: "/settings",
                 create: "/settings/create",
-                edit:   "/settings/edit/:id",
+                edit: "/settings/edit/:id",
                 meta: { label: "Settings", icon: <SettingOutlined /> },
               },
               {
                 name: "memory",
-                list:   "/memory",
+                list: "/memory",
                 create: "/memory/create",
-                edit:   "/memory/edit/:id",
+                edit: "/memory/edit/:id",
                 meta: { label: "Memory", icon: <DatabaseOutlined /> },
               },
               {
                 name: "state",
-                list:   "/state",
-                edit:   "/state/edit/:id",
+                list: "/state",
+                create: "/state/create",
+                edit: "/state/edit/:id",
                 meta: { label: "State", icon: <ControlOutlined /> },
               },
               {
                 name: "sessions",
-                list:   "/sessions",
-                show:   "/sessions/:id",
+                list: "/sessions",
+                show: "/sessions/:id",
+                create: "/sessions/create",
+                edit: "/sessions/edit/:id",
                 meta: { label: "Sessions", icon: <KeyOutlined /> },
               },
               {
                 name: "messages",
-                list:   "/messages",
+                list: "/messages",
+                show: "/messages/:id",
+                create: "/messages/create",
+                edit: "/messages/edit/:id",
                 meta: { label: "Messages", icon: <MessageOutlined /> },
               },
             ]}
@@ -88,16 +94,22 @@ export default function App() {
 
                 <Route path="state">
                   <Route index element={<StateList />} />
+                  <Route path="create" element={<StateCreate />} />
                   <Route path="edit/:id" element={<StateEdit />} />
                 </Route>
 
                 <Route path="sessions">
                   <Route index element={<SessionsList />} />
+                  <Route path="create" element={<SessionsCreate />} />
+                  <Route path="edit/:id" element={<SessionsEdit />} />
                   <Route path=":id" element={<SessionsShow />} />
                 </Route>
 
                 <Route path="messages">
                   <Route index element={<MessagesList />} />
+                  <Route path="create" element={<MessagesCreate />} />
+                  <Route path="edit/:id" element={<MessagesEdit />} />
+                  <Route path=":id" element={<MessagesShow />} />
                 </Route>
               </Route>
             </Routes>

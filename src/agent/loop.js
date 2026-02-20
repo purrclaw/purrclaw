@@ -311,7 +311,7 @@ class AgentLoop {
         if (channel === "telegram_user") {
           return "👋 Telegram user session is active. Ready to reply on behalf of the owner.";
         }
-        return "👋 Hello! I'm PurrClaw 🐾, your AI assistant powered by DeepSeek. How can I help you today?";
+        return "👋 Hello! I'm PurrClaw 🐾, your AI assistant. How can I help you today?";
       case "/help":
         if (channel === "telegram_user") {
           return (

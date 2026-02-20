@@ -42,6 +42,11 @@ const {
 const MAX_ITERATIONS = parseInt(process.env.MAX_ITERATIONS || "20", 10);
 const CONTEXT_WINDOW = parseInt(process.env.CONTEXT_WINDOW || "65536", 10);
 const SUMMARY_MSG_THRESHOLD = 20;
+const FS_ACCESS_PASSWORD = String(process.env.FS_ACCESS_PASSWORD || "").trim();
+
+function escapeRegex(text) {
+  return String(text).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
 
 class AgentLoop {
   /**
@@ -54,6 +59,7 @@ class AgentLoop {
     this.reminderService = options.reminderService || null;
     this.subagentService = options.subagentService || null;
     this.summarizing = new Set();
+    this.sessionQueue = new Map();
 
     // Build tool registry
     this.tools = new ToolRegistry();
@@ -97,6 +103,35 @@ class AgentLoop {
     chatId = "",
     options = {},
   ) {
+    const key = String(sessionKey || "").trim();
+    if (!key) {
+      throw new Error("sessionKey is required");
+    }
+
+    return this._enqueueSessionTask(key, () =>
+      this._processMessageSequential(key, userMessage, channel, chatId, options),
+    );
+  }
+
+  _enqueueSessionTask(sessionKey, task) {
+    const previous = this.sessionQueue.get(sessionKey) || Promise.resolve();
+    const next = previous.catch(() => {}).then(task);
+    const tracked = next.finally(() => {
+      if (this.sessionQueue.get(sessionKey) === tracked) {
+        this.sessionQueue.delete(sessionKey);
+      }
+    });
+    this.sessionQueue.set(sessionKey, tracked);
+    return next;
+  }
+
+  async _processMessageSequential(
+    sessionKey,
+    userMessage,
+    channel = "",
+    chatId = "",
+    options = {},
+  ) {
     // Handle slash commands
     const cmdResponse = await this._handleCommand(userMessage, channel, sessionKey);
     if (cmdResponse !== null) return cmdResponse;
@@ -112,16 +147,32 @@ class AgentLoop {
       userMessage,
       channel,
       chatId,
+      options.profileHint || "",
     );
+
+    if (
+      channel === "telegram_user" &&
+      String(process.env.TELEGRAM_USER_PROFILE_DEBUG || "false")
+        .trim()
+        .toLowerCase() !== "false"
+    ) {
+      const preview = String(messages[0]?.content || "")
+        .replace(/\s+/g, " ")
+        .slice(0, 220);
+      console.log(`[agent] system_prompt_preview=${preview}`);
+    }
 
     // Save user message
     await addMessage(sessionKey, "user", userMessage);
+
+    const filesystemAccessGranted = this._hasFilesystemAccess(userMessage);
 
     // Run LLM iteration loop
     const finalContent = await this._runLLMLoop(sessionKey, messages, {
       ...options,
       channel,
       chatId,
+      filesystemAccessGranted,
     });
 
     // Save assistant response
@@ -171,8 +222,9 @@ class AgentLoop {
             history,
             summary,
             "",
-            "",
-            "",
+            options.channel || "",
+            options.chatId || "",
+            options.profileHint || "",
           );
           continue;
         }
@@ -224,6 +276,7 @@ class AgentLoop {
             sendTelegramFile: options.sendTelegramFile,
             toolTimeoutMs: Number(process.env.TOOL_TIMEOUT_MS || 45000),
             canSpawnSubagents: options.canSpawnSubagents !== false,
+            filesystemAccessGranted: options.filesystemAccessGranted === true,
           });
           return { tc, result };
         }),
@@ -255,8 +308,25 @@ class AgentLoop {
 
     switch (cmd) {
       case "/start":
+        if (channel === "telegram_user") {
+          return "👋 Telegram user session is active. Ready to reply on behalf of the owner.";
+        }
         return "👋 Hello! I'm PurrClaw 🐾, your AI assistant powered by DeepSeek. How can I help you today?";
       case "/help":
+        if (channel === "telegram_user") {
+          return (
+            "🤖 *Telegram User Mode Help*\n\n" +
+            "This channel replies from your Telegram user account.\n\n" +
+            "*Commands:*\n" +
+            "/start - Check status\n" +
+            "/help - Show this help\n" +
+            "/reset - Clear conversation history\n" +
+            "/revoke_session - Log out and delete saved user session\n" +
+            "/loop_reset - Reset bot-to-bot loop counter\n" +
+            "/model - Show current model\n" +
+            "/tools - List available tools"
+          );
+        }
         return (
           "🐾 *PurrClaw Help*\n\n" +
           "I'm an AI assistant that can help you with:\n" +
@@ -288,6 +358,14 @@ class AgentLoop {
       default:
         return null;
     }
+  }
+
+  _hasFilesystemAccess(userMessage) {
+    if (!FS_ACCESS_PASSWORD) return false;
+    const text = String(userMessage || "");
+    const escaped = escapeRegex(FS_ACCESS_PASSWORD);
+    const re = new RegExp(`(?:^|\\s)${escaped}(?:$|\\s|[.,!?;:])`);
+    return re.test(text);
   }
 
   _renderSubagents(sessionKey) {

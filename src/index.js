@@ -1,9 +1,8 @@
-const env = process.env.NODE_ENV || "development";
-require("dotenv").config({ path: `.env.${env}`, override: false });
-require("dotenv").config({ path: ".env.local", override: true });
-require("dotenv").config({ path: ".env", override: false });
+const { loadEnv } = require("./config/env");
+loadEnv();
 
 const path = require("path");
+const { enforceSecurityPolicy } = require("./config/security");
 const { initDb } = require("./db/database");
 const { AgentLoop } = require("./agent/loop");
 const { createProviderFromEnv } = require("./providers/factory");
@@ -29,6 +28,8 @@ function parseAllowlist(raw) {
 const allowedIdentities = parseAllowlist(ALLOWED_IDENTITIES_RAW || "");
 
 async function main() {
+  enforceSecurityPolicy(process.env, allowedIdentities);
+
   console.log("🐾 PurrClaw starting up...");
   console.log(`   Workspace: ${WORKSPACE_DIR}`);
   console.log(`   Database:  ${DB_PATH}`);

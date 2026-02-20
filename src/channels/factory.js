@@ -1,4 +1,5 @@
 const { TelegramChannel } = require("./telegram");
+const { TelegramUserChannel } = require("./telegram_user");
 const { DiscordChannel } = require("./discord");
 const { SlackChannel } = require("./slack");
 const { WhatsAppChannel } = require("./whatsapp");
@@ -26,7 +27,28 @@ function createChannelsFromEnv({ env, agentLoop, allowedIdentities }) {
         );
       }
       channels.push(
-        new TelegramChannel(env.TELEGRAM_TOKEN, agentLoop, allowedIdentities),
+        new TelegramChannel(env.TELEGRAM_TOKEN, agentLoop, allowedIdentities, {
+          profileHint: env.TELEGRAM_PROFILE_HINT || "",
+        }),
+      );
+      continue;
+    }
+
+    if (name === "telegram_user") {
+      if (!env.TELEGRAM_API_ID || !env.TELEGRAM_API_HASH) {
+        throw new Error(
+          "TELEGRAM_API_ID and TELEGRAM_API_HASH are required when ENABLED_CHANNELS includes telegram_user",
+        );
+      }
+      channels.push(
+        new TelegramUserChannel(
+          {
+            apiId: env.TELEGRAM_API_ID,
+            apiHash: env.TELEGRAM_API_HASH,
+            allowedPeers: env.TELEGRAM_USER_ALLOWED_PEERS || "",
+          },
+          agentLoop,
+        ),
       );
       continue;
     }
@@ -69,7 +91,7 @@ function createChannelsFromEnv({ env, agentLoop, allowedIdentities }) {
     }
 
     throw new Error(
-      `Unsupported channel '${name}'. Supported: telegram, discord, slack, whatsapp`,
+      `Unsupported channel '${name}'. Supported: telegram, telegram_user, discord, slack, whatsapp`,
     );
   }
 

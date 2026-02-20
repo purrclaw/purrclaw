@@ -6,6 +6,26 @@ const {
   deleteMemory,
 } = require("../db/database");
 
+const PROTECTED_GLOBAL_MEMORY_KEYS = new Set(["telegram:user_session"]);
+
+function isProtectedMemoryKey(key) {
+  const normalized = String(key || "").trim().toLowerCase();
+  if (!normalized) return false;
+  if (PROTECTED_GLOBAL_MEMORY_KEYS.has(normalized)) return true;
+  if (normalized.startsWith("system:")) return true;
+  if (normalized.startsWith("internal:")) return true;
+  return false;
+}
+
+function protectedKeyError(scope, key) {
+  const msg = `Access denied: protected memory key (${scope}:${key})`;
+  return {
+    forLLM: msg,
+    forUser: "⛔ Access denied: protected memory key.",
+    isError: true,
+  };
+}
+
 function buildScopedKey(key, scope, context = {}) {
   if (scope === "global") return key;
   if (scope && scope !== "session") {
@@ -42,6 +62,9 @@ const memoryReadTool = () => ({
     const { key, scope = "session" } = args;
     if (!key) return { forLLM: "key is required", isError: true };
     const scopedKey = buildScopedKey(key, scope, context);
+    if (isProtectedMemoryKey(key) || isProtectedMemoryKey(scopedKey)) {
+      return protectedKeyError(scope, key);
+    }
     const value = await getMemory(scopedKey);
     if (value === null) {
       return {
@@ -81,6 +104,9 @@ const memoryWriteTool = () => ({
     if (value === undefined)
       return { forLLM: "value is required", isError: true };
     const scopedKey = buildScopedKey(key, scope, context);
+    if (isProtectedMemoryKey(key) || isProtectedMemoryKey(scopedKey)) {
+      return protectedKeyError(scope, key);
+    }
     await setMemory(scopedKey, String(value));
     return {
       forLLM: `Memory saved (${scope}): ${key} = ${value}`,
@@ -111,10 +137,11 @@ const memoryListTool = () => ({
     const limit = args && args.limit ? Number(args.limit) : 50;
     const scope = String(args?.scope || "session");
     const rows = await listMemory(limit);
+    const visibleRows = rows.filter((row) => !isProtectedMemoryKey(row.key));
     const filtered =
       scope === "global"
-        ? rows.filter((row) => !String(row.key).startsWith("session:"))
-        : rows.filter((row) =>
+        ? visibleRows.filter((row) => !String(row.key).startsWith("session:"))
+        : visibleRows.filter((row) =>
             String(row.key).startsWith(`session:${context.sessionKey || "unknown"}:`),
           );
     if (!filtered.length) {
@@ -154,6 +181,9 @@ const memoryDeleteTool = () => ({
     const { key, scope = "session" } = args;
     if (!key) return { forLLM: "key is required", isError: true };
     const scopedKey = buildScopedKey(key, scope, context);
+    if (isProtectedMemoryKey(key) || isProtectedMemoryKey(scopedKey)) {
+      return protectedKeyError(scope, key);
+    }
     const deleted = await deleteMemory(scopedKey);
     if (!deleted) {
       return {
@@ -175,4 +205,5 @@ module.exports = {
   memoryWriteTool,
   memoryListTool,
   memoryDeleteTool,
+  isProtectedMemoryKey,
 };

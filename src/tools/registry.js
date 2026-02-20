@@ -1,4 +1,13 @@
 
+const PROTECTED_FILESYSTEM_TOOLS = new Set([
+  "read_file",
+  "write_file",
+  "append_file",
+  "list_dir",
+  "exec",
+  "workspace_search",
+]);
+
 class ToolRegistry {
   constructor() {
     this.tools = new Map();
@@ -40,6 +49,20 @@ class ToolRegistry {
       return {
         forLLM: `Tool '${name}' not found`,
         forUser: `Tool '${name}' not found`,
+        isError: true,
+        silent: false,
+      };
+    }
+
+    if (
+      PROTECTED_FILESYSTEM_TOOLS.has(name) &&
+      context.filesystemAccessGranted !== true
+    ) {
+      return {
+        forLLM:
+          "Access denied: filesystem tools are locked. Ask user to provide the filesystem password in the same message.",
+        forUser:
+          "⛔ Filesystem access denied. Add the filesystem password in your message and retry.",
         isError: true,
         silent: false,
       };

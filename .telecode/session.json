@@ -1,0 +1,40 @@
+[
+  {
+    "role": "user",
+    "content": [
+      {
+        "type": "text",
+        "text": "привет"
+      }
+    ],
+    "timestamp": 1772127723502
+  },
+  {
+    "role": "assistant",
+    "content": [
+      {
+        "type": "text",
+        "text": "Привет! Чем могу помочь?"
+      }
+    ],
+    "api": "openai-completions",
+    "provider": "openrouter",
+    "model": "arcee-ai/trinity-large-preview:free",
+    "usage": {
+      "input": 1516,
+      "output": 9,
+      "cacheRead": 0,
+      "cacheWrite": 0,
+      "totalTokens": 1525,
+      "cost": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "total": 0
+      }
+    },
+    "stopReason": "stop",
+    "timestamp": 1772127723504
+  }
+]

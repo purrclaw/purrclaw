@@ -2,7 +2,7 @@ FROM node:22-alpine AS deps
 
 WORKDIR /app
 
-RUN apk add --no-cache python3 make g++
+RUN apk add --no-cache python3 py3-setuptools make g++
 
 COPY package*.json ./
 ENV PUPPETEER_SKIP_DOWNLOAD=true
@@ -13,7 +13,7 @@ FROM node:22-alpine AS dev
 
 WORKDIR /app
 
-RUN apk add --no-cache python3 make g++ chromium nss freetype harfbuzz ca-certificates ttf-freefont
+RUN apk add --no-cache python3 py3-setuptools make g++ chromium nss freetype harfbuzz ca-certificates ttf-freefont
 
 COPY package*.json ./
 ENV PUPPETEER_SKIP_DOWNLOAD=true
